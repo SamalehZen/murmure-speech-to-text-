@@ -3,6 +3,13 @@ import { listen } from '@tauri-apps/api/event';
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'react-toastify';
+import {
+    LLMProvider,
+    ProviderConfig,
+    AppPromptRule,
+    ActiveWindowInfo,
+    PROVIDER_BASE_URLS,
+} from '../llm-connect.types';
 
 export interface LLMMode {
     name: string;
@@ -18,6 +25,10 @@ export interface LLMConnectSettings {
     modes: LLMMode[];
     active_mode_index: number;
     onboarding_completed: boolean;
+    active_provider: LLMProvider;
+    providers: Record<string, ProviderConfig>;
+    app_detection_enabled: boolean;
+    app_rules: AppPromptRule[];
 }
 
 export interface OllamaModel {
@@ -30,6 +41,48 @@ export type ConnectionStatus =
     | 'testing'
     | 'error';
 
+const defaultProviders: Record<string, ProviderConfig> = {
+    ollama: {
+        provider: 'ollama',
+        api_key: undefined,
+        base_url: PROVIDER_BASE_URLS.ollama,
+        model: '',
+        available_models: [],
+    },
+    openai: {
+        provider: 'openai',
+        api_key: undefined,
+        base_url: PROVIDER_BASE_URLS.openai,
+        model: 'gpt-4o-mini',
+        available_models: [],
+    },
+    anthropic: {
+        provider: 'anthropic',
+        api_key: undefined,
+        base_url: PROVIDER_BASE_URLS.anthropic,
+        model: 'claude-3-5-sonnet-latest',
+        available_models: [
+            'claude-3-5-sonnet-latest',
+            'claude-3-5-haiku-latest',
+            'claude-3-opus-latest',
+        ],
+    },
+    google: {
+        provider: 'google',
+        api_key: undefined,
+        base_url: PROVIDER_BASE_URLS.google,
+        model: 'gemini-2.5-flash',
+        available_models: [],
+    },
+    openrouter: {
+        provider: 'openrouter',
+        api_key: undefined,
+        base_url: PROVIDER_BASE_URLS.openrouter,
+        model: '',
+        available_models: [],
+    },
+};
+
 export const useLLMConnect = () => {
     const { t } = useTranslation();
     const [settings, setSettings] = useState<LLMConnectSettings>({
@@ -39,19 +92,22 @@ export const useLLMConnect = () => {
         modes: [],
         active_mode_index: 0,
         onboarding_completed: false,
+        active_provider: 'ollama',
+        providers: defaultProviders,
+        app_detection_enabled: false,
+        app_rules: [],
     });
     const [models, setModels] = useState<OllamaModel[]>([]);
     const [connectionStatus, setConnectionStatus] =
         useState<ConnectionStatus>('disconnected');
     const [isLoading, setIsLoading] = useState(false);
     const [isSettingsLoaded, setIsSettingsLoaded] = useState(false);
+    const [currentActiveWindow, setCurrentActiveWindow] = useState<ActiveWindowInfo | null>(null);
 
-    // Load settings on mount
     useEffect(() => {
         loadSettings();
     }, []);
 
-    // Listen for LLM errors from backend
     useEffect(() => {
         const unlisten = listen<string>('llm-error', (event) => {
             toast.error(t('LLM processing failed') + ' : ' + event.payload);
@@ -80,10 +136,16 @@ export const useLLMConnect = () => {
             const loadedSettings = await invoke<LLMConnectSettings>(
                 'get_llm_connect_settings'
             );
-            setSettings(loadedSettings);
+            const mergedSettings = {
+                ...loadedSettings,
+                providers: {
+                    ...defaultProviders,
+                    ...loadedSettings.providers,
+                },
+            };
+            setSettings(mergedSettings);
             setIsSettingsLoaded(true);
 
-            // Test connection and fetch models if url is present
             if (loadedSettings.url) {
                 const connected = await testConnection(loadedSettings.url);
                 if (connected) {
@@ -175,6 +237,131 @@ export const useLLMConnect = () => {
         await saveSettings(newSettings);
     };
 
+    const setActiveProvider = useCallback(
+        async (provider: LLMProvider) => {
+            try {
+                await invoke('set_active_provider', { provider });
+                setSettings((prev) => ({ ...prev, active_provider: provider }));
+            } catch (error) {
+                console.error('Failed to set active provider:', error);
+                throw error;
+            }
+        },
+        []
+    );
+
+    const saveProviderConfig = useCallback(
+        async (provider: LLMProvider, config: ProviderConfig) => {
+            try {
+                await invoke('save_provider_config', { provider, config });
+                setSettings((prev) => ({
+                    ...prev,
+                    providers: {
+                        ...prev.providers,
+                        [provider]: config,
+                    },
+                }));
+            } catch (error) {
+                console.error('Failed to save provider config:', error);
+                throw error;
+            }
+        },
+        []
+    );
+
+    const fetchProviderModels = useCallback(
+        async (provider: LLMProvider): Promise<string[]> => {
+            const config = settings.providers[provider];
+            if (!config) {
+                throw new Error('Provider not configured');
+            }
+
+            try {
+                const fetchedModels = await invoke<string[]>('fetch_provider_models', {
+                    provider,
+                    apiKey: config.api_key || '',
+                    baseUrl: config.base_url,
+                });
+                return fetchedModels;
+            } catch (error) {
+                console.error('Failed to fetch provider models:', error);
+                throw error;
+            }
+        },
+        [settings.providers]
+    );
+
+    const testProviderConnection = useCallback(
+        async (provider: LLMProvider): Promise<boolean> => {
+            const config = settings.providers[provider];
+            if (!config) {
+                throw new Error('Provider not configured');
+            }
+
+            try {
+                const result = await invoke<boolean>('test_provider_connection', {
+                    provider,
+                    apiKey: config.api_key || '',
+                    baseUrl: config.base_url,
+                });
+                return result;
+            } catch (error) {
+                console.error('Failed to test provider connection:', error);
+                throw error;
+            }
+        },
+        [settings.providers]
+    );
+
+    const toggleAppDetection = useCallback(
+        async (enabled: boolean) => {
+            try {
+                await invoke('toggle_app_detection', { enabled });
+                setSettings((prev) => ({ ...prev, app_detection_enabled: enabled }));
+            } catch (error) {
+                console.error('Failed to toggle app detection:', error);
+                throw error;
+            }
+        },
+        []
+    );
+
+    const saveAppRules = useCallback(
+        async (rules: AppPromptRule[]) => {
+            try {
+                await invoke('save_app_rules', { rules });
+                setSettings((prev) => ({ ...prev, app_rules: rules }));
+            } catch (error) {
+                console.error('Failed to save app rules:', error);
+                throw error;
+            }
+        },
+        []
+    );
+
+    const refreshActiveWindow = useCallback(async () => {
+        try {
+            const windowInfo = await invoke<ActiveWindowInfo>('get_current_active_window');
+            setCurrentActiveWindow(windowInfo);
+        } catch (error) {
+            console.error('Failed to get active window:', error);
+            setCurrentActiveWindow(null);
+        }
+    }, []);
+
+    const testAppRule = useCallback(
+        async (rule: AppPromptRule): Promise<boolean> => {
+            try {
+                const result = await invoke<boolean>('test_app_rule', { rule });
+                return result;
+            } catch (error) {
+                console.error('Failed to test app rule:', error);
+                return false;
+            }
+        },
+        []
+    );
+
     return {
         settings,
         models,
@@ -188,5 +375,18 @@ export const useLLMConnect = () => {
         fetchModels,
         pullModel,
         completeOnboarding,
+        activeProvider: settings.active_provider,
+        providers: settings.providers,
+        setActiveProvider,
+        saveProviderConfig,
+        fetchProviderModels,
+        testProviderConnection,
+        appDetectionEnabled: settings.app_detection_enabled,
+        appRules: settings.app_rules,
+        currentActiveWindow,
+        toggleAppDetection,
+        saveAppRules,
+        refreshActiveWindow,
+        testAppRule,
     };
 };

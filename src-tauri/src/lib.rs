@@ -1,5 +1,6 @@
 #![allow(clippy::module_inception)]
 
+mod app_context;
 mod audio;
 mod clipboard;
 mod commands;
@@ -202,6 +203,14 @@ pub fn run() {
             test_llm_connection,
             fetch_ollama_models,
             pull_ollama_model,
+            fetch_provider_models,
+            test_provider_connection,
+            set_active_provider,
+            save_provider_config,
+            get_current_active_window,
+            save_app_rules,
+            toggle_app_detection,
+            test_app_rule,
             get_sound_enabled,
             set_sound_enabled,
             get_record_mode,
