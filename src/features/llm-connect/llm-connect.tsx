@@ -8,6 +8,11 @@ import { LLMHeader } from './components/llm-header';
 import { ModeTabs } from './components/mode-tabs';
 import { ModeContent } from './components/mode-content';
 import { LLMAdvancedSettings } from './components/llm-advanced-settings';
+import { ProviderSelector } from './components/provider-selector';
+import { ApiKeyConfig } from './components/api-key-config';
+import { AppDetectionSettings } from './components/app-detection-settings';
+import { SettingsUI } from '@/components/settings-ui';
+import { LLMProvider, ProviderConfig } from './llm-connect.types';
 
 export const LLMConnect = () => {
     const { t, i18n } = useTranslation();
@@ -21,6 +26,19 @@ export const LLMConnect = () => {
         testConnection,
         fetchModels,
         pullModel,
+        activeProvider,
+        providers,
+        setActiveProvider,
+        saveProviderConfig,
+        fetchProviderModels,
+        testProviderConnection,
+        appDetectionEnabled,
+        appRules,
+        currentActiveWindow,
+        toggleAppDetection,
+        saveAppRules,
+        refreshActiveWindow,
+        testAppRule,
     } = useLLMConnect();
 
     const [showModelSelector, setShowModelSelector] = useState(false);
@@ -56,6 +74,49 @@ export const LLMConnect = () => {
             });
         } catch {
             toast.error(t('Failed to reset onboarding'));
+        }
+    };
+
+    const handleProviderChange = async (provider: LLMProvider) => {
+        try {
+            await setActiveProvider(provider);
+            toast.success(t('Provider changed'), { autoClose: 1500 });
+        } catch {
+            toast.error(t('Failed to change provider'));
+        }
+    };
+
+    const handleSaveProviderConfig = async (config: ProviderConfig) => {
+        try {
+            await saveProviderConfig(activeProvider, config);
+        } catch {
+            toast.error(t('Failed to save provider config'));
+        }
+    };
+
+    const handleTestProviderConnection = async (): Promise<boolean> => {
+        try {
+            const result = await testProviderConnection(activeProvider);
+            if (result) {
+                toast.success(t('Connection successful'), { autoClose: 1500 });
+            } else {
+                toast.error(t('Connection failed'));
+            }
+            return result;
+        } catch (error) {
+            toast.error(t('Connection failed') + ': ' + (error as Error).message);
+            return false;
+        }
+    };
+
+    const handleRefreshProviderModels = async (): Promise<string[]> => {
+        try {
+            const fetchedModels = await fetchProviderModels(activeProvider);
+            toast.success(t('Models refreshed'), { autoClose: 1500 });
+            return fetchedModels;
+        } catch (error) {
+            toast.error(t('Failed to fetch models') + ': ' + (error as Error).message);
+            return [];
         }
     };
 
@@ -105,7 +166,6 @@ export const LLMConnect = () => {
         );
     }
 
-    // Install another model flow (preserves existing configuration)
     if (showModelSelector) {
         return (
             <main>
@@ -126,7 +186,6 @@ export const LLMConnect = () => {
         );
     }
 
-    // First-time setup onboarding flow
     if (!settings.onboarding_completed) {
         return (
             <main>
@@ -146,37 +205,82 @@ export const LLMConnect = () => {
         );
     }
 
+    const currentProviderConfig = providers[activeProvider] || {
+        provider: activeProvider,
+        api_key: undefined,
+        base_url: '',
+        model: '',
+        available_models: [],
+    };
+
     return (
         <main>
             <div className="space-y-6">
                 <LLMHeader connectionStatus={connectionStatus} />
 
-                <ModeTabs
-                    modes={settings.modes}
-                    activeModeIndex={activeModeIndex}
-                    models={models}
-                    updateSettings={updateSettings}
+                <SettingsUI.Container className="mb-6">
+                    <ProviderSelector
+                        activeProvider={activeProvider}
+                        onProviderChange={handleProviderChange}
+                    />
+
+                    {activeProvider !== 'ollama' && (
+                        <>
+                            <SettingsUI.Separator />
+                            <div className="px-4 py-3">
+                                <ApiKeyConfig
+                                    provider={activeProvider}
+                                    config={currentProviderConfig}
+                                    onSave={handleSaveProviderConfig}
+                                    onTestConnection={handleTestProviderConnection}
+                                    onRefreshModels={handleRefreshProviderModels}
+                                    isLoading={isLoading}
+                                />
+                            </div>
+                        </>
+                    )}
+                </SettingsUI.Container>
+
+                <AppDetectionSettings
+                    enabled={appDetectionEnabled}
+                    rules={appRules}
+                    currentWindow={currentActiveWindow}
+                    onToggle={toggleAppDetection}
+                    onRulesChange={saveAppRules}
+                    onRefreshWindow={refreshActiveWindow}
+                    onTestRule={testAppRule}
                 />
 
-                {activeMode && (
+                {activeProvider === 'ollama' && (
                     <>
-                        <ModeContent
-                            activeMode={activeMode}
-                            activeModeIndex={activeModeIndex}
+                        <ModeTabs
                             modes={settings.modes}
+                            activeModeIndex={activeModeIndex}
                             models={models}
-                            isLoading={isLoading}
                             updateSettings={updateSettings}
-                            onRefreshModels={handleTestConnection}
                         />
 
-                        <LLMAdvancedSettings
-                            url={settings.url}
-                            onUrlChange={(url) => updateSettings({ url })}
-                            onTestConnection={handleTestConnection}
-                            onInstallModel={() => setShowModelSelector(true)}
-                            onResetOnboarding={handleResetOnboarding}
-                        />
+                        {activeMode && (
+                            <>
+                                <ModeContent
+                                    activeMode={activeMode}
+                                    activeModeIndex={activeModeIndex}
+                                    modes={settings.modes}
+                                    models={models}
+                                    isLoading={isLoading}
+                                    updateSettings={updateSettings}
+                                    onRefreshModels={handleTestConnection}
+                                />
+
+                                <LLMAdvancedSettings
+                                    url={settings.url}
+                                    onUrlChange={(url) => updateSettings({ url })}
+                                    onTestConnection={handleTestConnection}
+                                    onInstallModel={() => setShowModelSelector(true)}
+                                    onResetOnboarding={handleResetOnboarding}
+                                />
+                            </>
+                        )}
                     </>
                 )}
             </div>

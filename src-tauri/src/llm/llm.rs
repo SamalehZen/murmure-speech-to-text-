@@ -1,130 +1,203 @@
+use crate::app_context;
 use crate::dictionary;
 use crate::llm::helpers::load_llm_connect_settings;
+use crate::llm::providers;
 use crate::llm::types::{
+    AppContextEvent, AppMatchType, AppPromptRule, LLMConnectSettings, LLMProvider,
     OllamaGenerateRequest, OllamaGenerateResponse, OllamaModel, OllamaOptions, OllamaPullRequest,
-    OllamaPullResponse, OllamaTagsResponse,
+    OllamaPullResponse, OllamaTagsResponse, ProviderConfig,
 };
 use log::warn;
+use regex::Regex;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
+
+fn get_provider_key(provider: &LLMProvider) -> String {
+    match provider {
+        LLMProvider::Ollama => "ollama".to_string(),
+        LLMProvider::OpenAI => "openai".to_string(),
+        LLMProvider::Anthropic => "anthropic".to_string(),
+        LLMProvider::Google => "google".to_string(),
+        LLMProvider::OpenRouter => "openrouter".to_string(),
+    }
+}
+
+fn rule_matches(window: &app_context::ActiveWindowInfo, rule: &AppPromptRule) -> bool {
+    match rule.match_type {
+        AppMatchType::AppNameContains => window
+            .app_name
+            .to_lowercase()
+            .contains(&rule.match_pattern.to_lowercase()),
+        AppMatchType::WindowTitleContains => window
+            .window_title
+            .to_lowercase()
+            .contains(&rule.match_pattern.to_lowercase()),
+        AppMatchType::ProcessNameEquals => {
+            window.process_name.to_lowercase() == rule.match_pattern.to_lowercase()
+        }
+        AppMatchType::WindowTitleRegex => Regex::new(&rule.match_pattern)
+            .map(|r| r.is_match(&window.window_title))
+            .unwrap_or(false),
+    }
+}
+
+fn get_effective_prompt(
+    app: &AppHandle,
+    settings: &LLMConnectSettings,
+) -> Result<String, String> {
+    let default_prompt = settings
+        .modes
+        .get(settings.active_mode_index)
+        .map(|m| m.prompt.clone())
+        .unwrap_or_default();
+
+    if !settings.app_detection_enabled {
+        return Ok(default_prompt);
+    }
+
+    let window_info = match app_context::get_active_window() {
+        Ok(info) => info,
+        Err(_) => return Ok(default_prompt),
+    };
+
+    let mut rules = settings.app_rules.clone();
+    rules.sort_by(|a, b| b.priority.cmp(&a.priority));
+
+    for rule in rules.iter().filter(|r| r.enabled) {
+        if rule_matches(&window_info, rule) {
+            let _ = app.emit(
+                "app-context-matched",
+                AppContextEvent {
+                    app_name: window_info.app_name.clone(),
+                    rule_name: rule.name.clone(),
+                },
+            );
+            return Ok(rule.prompt_template.clone());
+        }
+    }
+
+    Ok(default_prompt)
+}
+
+async fn generate_with_provider(
+    config: &ProviderConfig,
+    prompt: &str,
+    temperature: f32,
+) -> Result<String, String> {
+    match config.provider {
+        LLMProvider::Ollama => providers::ollama::generate(config, prompt, temperature).await,
+        LLMProvider::OpenAI => providers::openai::generate(config, prompt, temperature).await,
+        LLMProvider::Anthropic => providers::anthropic::generate(config, prompt, temperature).await,
+        LLMProvider::Google => providers::google::generate(config, prompt, temperature).await,
+        LLMProvider::OpenRouter => providers::openrouter::generate(config, prompt, temperature).await,
+    }
+}
 
 pub async fn post_process_with_llm(
     app: &AppHandle,
     transcription: String,
     force_bypass: bool,
 ) -> Result<String, String> {
-    // If force_bypass is true, skip LLM processing entirely
     if force_bypass {
         return Ok(transcription);
     }
 
     let settings = load_llm_connect_settings(app);
+    let provider_key = get_provider_key(&settings.active_provider);
+    
+    let provider_config = if settings.active_provider == LLMProvider::Ollama {
+        ProviderConfig {
+            provider: LLMProvider::Ollama,
+            api_key: None,
+            base_url: settings.url.clone(),
+            model: settings
+                .modes
+                .get(settings.active_mode_index)
+                .map(|m| m.model.clone())
+                .unwrap_or_default(),
+            available_models: Vec::new(),
+        }
+    } else {
+        settings
+            .providers
+            .get(&provider_key)
+            .cloned()
+            .ok_or("Provider not configured")?
+    };
 
-    let active_mode = settings
-        .modes
-        .get(settings.active_mode_index)
-        .ok_or("No active mode selected")?;
-
-    if active_mode.model.is_empty() {
+    if provider_config.model.is_empty() {
         return Err("No model selected".to_string());
     }
 
     let _ = app.emit("llm-processing-start", ());
 
-    // Load dictionary words and format as comma-separated list
     let dictionary_words = dictionary::load(app)
         .unwrap_or_default()
         .into_keys()
         .collect::<Vec<String>>()
         .join(", ");
 
-    let prompt = active_mode
-        .prompt
+    let prompt_template = get_effective_prompt(app, &settings)?;
+    let prompt = prompt_template
         .replace("{{TRANSCRIPT}}", &transcription)
-        .replace("{transcript}", &transcription) // Support new variable syntax
+        .replace("{transcript}", &transcription)
         .replace("{{DICTIONARY}}", &dictionary_words)
-        .replace("{dictionary}", &dictionary_words); // Support new variable syntax
+        .replace("{dictionary}", &dictionary_words);
 
-    let client = reqwest::Client::new();
-    let url = format!("{}/generate", settings.url.trim_end_matches('/'));
-
-    let request_body = OllamaGenerateRequest {
-        model: active_mode.model.clone(),
-        prompt,
-        stream: false,
-        options: Some(OllamaOptions { temperature: 0.0 }),
-    };
-
-    let response = client.post(&url).json(&request_body).send().await;
-
-    let response = match response {
-        Ok(res) => res,
-        Err(e) => {
-            let _ = app.emit("llm-processing-end", ());
-            return Err(format!("Failed to connect to Ollama: {}", e));
-        }
-    };
-
-    if !response.status().is_success() {
-        let _ = app.emit("llm-processing-end", ());
-        return Err(format!("Ollama API returned error: {}", response.status()));
-    }
-
-    let ollama_response: Result<OllamaGenerateResponse, _> = response.json().await;
+    let result = generate_with_provider(&provider_config, &prompt, 0.0).await;
 
     let _ = app.emit("llm-processing-end", ());
 
-    let ollama_response =
-        ollama_response.map_err(|e| format!("Failed to parse Ollama response: {}", e))?;
-
-    Ok(ollama_response.response.trim().to_string())
+    match result {
+        Ok(response) => Ok(response),
+        Err(e) => {
+            warn!("LLM processing failed: {}", e);
+            Err(e)
+        }
+    }
 }
 
 pub async fn process_command_with_llm(app: &AppHandle, prompt: String) -> Result<String, String> {
     let settings = load_llm_connect_settings(app);
-    let active_mode = settings
-        .modes
-        .get(settings.active_mode_index)
-        .ok_or("No active mode selected")?;
+    let provider_key = get_provider_key(&settings.active_provider);
 
-    if active_mode.model.is_empty() {
+    let provider_config = if settings.active_provider == LLMProvider::Ollama {
+        ProviderConfig {
+            provider: LLMProvider::Ollama,
+            api_key: None,
+            base_url: settings.url.clone(),
+            model: settings
+                .modes
+                .get(settings.active_mode_index)
+                .map(|m| m.model.clone())
+                .unwrap_or_default(),
+            available_models: Vec::new(),
+        }
+    } else {
+        settings
+            .providers
+            .get(&provider_key)
+            .cloned()
+            .ok_or("Provider not configured")?
+    };
+
+    if provider_config.model.is_empty() {
         return Err("No model selected".to_string());
     }
 
     let _ = app.emit("llm-processing-start", ());
 
-    let client = reqwest::Client::new();
-    let url = format!("{}/generate", settings.url.trim_end_matches('/'));
+    let result = generate_with_provider(&provider_config, &prompt, 0.0).await;
 
-    let request_body = OllamaGenerateRequest {
-        model: active_mode.model.clone(),
-        prompt,
-        stream: false,
-        options: Some(OllamaOptions { temperature: 0.0 }),
-    };
-
-    let response = client.post(&url).json(&request_body).send().await;
-
-    let response = match response {
-        Ok(res) => res,
-        Err(e) => {
-            let _ = app.emit("llm-processing-end", ());
-            return Err(format!("Failed to connect to Ollama: {}", e));
-        }
-    };
-
-    if !response.status().is_success() {
-        let _ = app.emit("llm-processing-end", ());
-        return Err(format!("Ollama API returned error: {}", response.status()));
-    }
-
-    let ollama_response: Result<OllamaGenerateResponse, _> = response.json().await;
     let _ = app.emit("llm-processing-end", ());
 
-    let ollama_response =
-        ollama_response.map_err(|e| format!("Failed to parse Ollama response: {}", e))?;
-
-    Ok(ollama_response.response.trim().to_string())
+    match result {
+        Ok(response) => Ok(response),
+        Err(e) => {
+            warn!("LLM command processing failed: {}", e);
+            Err(e)
+        }
+    }
 }
 
 pub async fn test_ollama_connection(url: String) -> Result<bool, String> {
@@ -202,13 +275,9 @@ pub async fn pull_ollama_model(app: AppHandle, url: String, model: String) -> Re
     Ok(())
 }
 
-/// Warm up the configured Ollama model by issuing a minimal generate request.
-/// This reduces the perceived latency on the first real call during LLM Connect.
 pub async fn warmup_ollama_model(app: &AppHandle) -> Result<(), String> {
     let settings = load_llm_connect_settings(app);
 
-    // Nothing to warm up if configuration is incomplete
-    // Check active mode
     if settings.modes.is_empty() || settings.url.trim().is_empty() {
         return Ok(());
     }
@@ -220,7 +289,6 @@ pub async fn warmup_ollama_model(app: &AppHandle) -> Result<(), String> {
     let client = reqwest::Client::new();
     let url = format!("{}/generate", settings.url.trim_end_matches('/'));
 
-    // Minimal prompt, no streaming. We intentionally ignore the response body.
     let request_body = OllamaGenerateRequest {
         model: active_mode.model.clone(),
         prompt: " ".to_string(),
@@ -245,7 +313,6 @@ pub async fn warmup_ollama_model(app: &AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-/// Fire-and-forget background warmup used at the beginning of LLM recording.
 pub fn warmup_ollama_model_background(app: &AppHandle) {
     let app_handle = app.clone();
     tauri::async_runtime::spawn(async move {
@@ -258,7 +325,6 @@ pub fn warmup_ollama_model_background(app: &AppHandle) {
 pub fn switch_active_mode(app: &AppHandle, index: usize) {
     let mut settings = load_llm_connect_settings(app);
 
-    // Check if index is valid and different
     if index < settings.modes.len() && settings.active_mode_index != index {
         settings.active_mode_index = index;
         let mode_name = settings.modes[index].name.clone();
@@ -284,5 +350,61 @@ pub fn switch_active_mode(app: &AppHandle, index: usize) {
                 }
             });
         }
+    }
+}
+
+pub async fn fetch_provider_models(
+    provider: LLMProvider,
+    api_key: String,
+    base_url: Option<String>,
+) -> Result<Vec<String>, String> {
+    let config = ProviderConfig {
+        provider: provider.clone(),
+        api_key: Some(api_key),
+        base_url: base_url.unwrap_or_else(|| match provider {
+            LLMProvider::Ollama => "http://localhost:11434/api".to_string(),
+            LLMProvider::OpenAI => "https://api.openai.com/v1".to_string(),
+            LLMProvider::Anthropic => "https://api.anthropic.com/v1".to_string(),
+            LLMProvider::Google => "https://generativelanguage.googleapis.com/v1beta".to_string(),
+            LLMProvider::OpenRouter => "https://openrouter.ai/api/v1".to_string(),
+        }),
+        model: String::new(),
+        available_models: Vec::new(),
+    };
+
+    match provider {
+        LLMProvider::Ollama => providers::ollama::list_models(&config).await,
+        LLMProvider::OpenAI => providers::openai::list_models(&config).await,
+        LLMProvider::Anthropic => providers::anthropic::list_models(&config).await,
+        LLMProvider::Google => providers::google::list_models(&config).await,
+        LLMProvider::OpenRouter => providers::openrouter::list_models(&config).await,
+    }
+}
+
+pub async fn test_provider_connection(
+    provider: LLMProvider,
+    api_key: String,
+    base_url: Option<String>,
+) -> Result<bool, String> {
+    let config = ProviderConfig {
+        provider: provider.clone(),
+        api_key: Some(api_key),
+        base_url: base_url.unwrap_or_else(|| match provider {
+            LLMProvider::Ollama => "http://localhost:11434/api".to_string(),
+            LLMProvider::OpenAI => "https://api.openai.com/v1".to_string(),
+            LLMProvider::Anthropic => "https://api.anthropic.com/v1".to_string(),
+            LLMProvider::Google => "https://generativelanguage.googleapis.com/v1beta".to_string(),
+            LLMProvider::OpenRouter => "https://openrouter.ai/api/v1".to_string(),
+        }),
+        model: String::new(),
+        available_models: Vec::new(),
+    };
+
+    match provider {
+        LLMProvider::Ollama => providers::ollama::test_connection(&config).await,
+        LLMProvider::OpenAI => providers::openai::test_connection(&config).await,
+        LLMProvider::Anthropic => providers::anthropic::test_connection(&config).await,
+        LLMProvider::Google => providers::google::test_connection(&config).await,
+        LLMProvider::OpenRouter => providers::openrouter::test_connection(&config).await,
     }
 }
