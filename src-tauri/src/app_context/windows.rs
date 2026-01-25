@@ -12,7 +12,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 pub fn get_active_window() -> Result<ActiveWindowInfo, String> {
     unsafe {
         let hwnd = GetForegroundWindow();
-        if hwnd == 0 {
+        if hwnd.is_null() {
             return Err("No foreground window".to_string());
         }
 
@@ -31,7 +31,7 @@ pub fn get_active_window() -> Result<ActiveWindowInfo, String> {
 
         let (app_name, process_name) = if process_id != 0 {
             let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, process_id);
-            if handle != 0 {
+            if !handle.is_null() {
                 let mut path_buf: [u16; MAX_PATH as usize] = [0; MAX_PATH as usize];
                 let mut path_len = MAX_PATH;
                 if QueryFullProcessImageNameW(handle, 0, path_buf.as_mut_ptr(), &mut path_len) != 0 {

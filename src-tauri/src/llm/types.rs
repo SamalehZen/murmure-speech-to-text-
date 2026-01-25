@@ -289,17 +289,17 @@ pub struct GoogleGenerateResponse {
     pub candidates: Option<Vec<GoogleCandidate>>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct GoogleCandidate {
     pub content: GoogleResponseContent,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct GoogleResponseContent {
     pub parts: Vec<GoogleResponsePart>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct GoogleResponsePart {
     pub text: String,
 }

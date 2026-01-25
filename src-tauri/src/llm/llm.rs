@@ -4,7 +4,7 @@ use crate::llm::helpers::load_llm_connect_settings;
 use crate::llm::providers;
 use crate::llm::types::{
     AppContextEvent, AppMatchType, AppPromptRule, LLMConnectSettings, LLMProvider,
-    OllamaGenerateRequest, OllamaGenerateResponse, OllamaModel, OllamaOptions, OllamaPullRequest,
+    OllamaGenerateRequest, OllamaModel, OllamaOptions, OllamaPullRequest,
     OllamaPullResponse, OllamaTagsResponse, ProviderConfig,
 };
 use log::warn;
