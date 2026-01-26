@@ -314,5 +314,6 @@
     "OpenAI": "OpenAI",
     "Anthropic": "Anthropic",
     "Google Gemini": "Google Gemini",
-    "OpenRouter": "OpenRouter"
+    "OpenRouter": "OpenRouter",
+    "privacy_warning_cloud": "Les transcriptions seront envoyées aux serveurs de {{provider}}. Vos clés API sont stockées localement sans chiffrement. N'utilisez pas avec des données sensibles."
 }
