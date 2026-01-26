@@ -175,6 +175,7 @@
     "Obedient": "Obéissant",
     "Ollama API URL": "URL de l'API Ollama",
     "Ollama is the engine that runs local LLMs. You need to download and install it to use this feature.": "Ollama est l'engine qui exécute les LLMs locaux. Vous devez le télécharger et l'installer pour utiliser cette fonctionnalité.",
+    "Ollama Setup": "Configuration Ollama",
     "Once installed and running, test the connection.": "Une fois installé et en cours d'exécution, testez la connexion.",
     "Open Source": "Open Source",
     "Optimized for low-end hardware": "Optimisé pour les PC anciens",
@@ -313,5 +314,6 @@
     "OpenAI": "OpenAI",
     "Anthropic": "Anthropic",
     "Google Gemini": "Google Gemini",
-    "OpenRouter": "OpenRouter"
+    "OpenRouter": "OpenRouter",
+    "privacy_warning_cloud": "Les transcriptions seront envoyées aux serveurs de {{provider}}. Vos clés API sont stockées localement sans chiffrement. N'utilisez pas avec des données sensibles."
 }

@@ -80,6 +80,9 @@ export const LLMConnect = () => {
     const handleProviderChange = async (provider: LLMProvider) => {
         try {
             await setActiveProvider(provider);
+            if (provider !== 'ollama' && !settings.onboarding_completed) {
+                await updateSettings({ onboarding_completed: true });
+            }
             toast.success(t('Provider changed'), { autoClose: 1500 });
         } catch {
             toast.error(t('Failed to change provider'));
@@ -186,21 +189,41 @@ export const LLMConnect = () => {
         );
     }
 
-    if (!settings.onboarding_completed) {
+    const isOllamaOnboardingNeeded = activeProvider === 'ollama' && !settings.onboarding_completed;
+
+    if (isOllamaOnboardingNeeded) {
         return (
             <main>
-                <LLMConnectOnboarding
-                    settings={settings}
-                    testConnection={testConnection}
-                    pullModel={pullModel}
-                    updateSettings={updateSettings}
-                    models={models}
-                    fetchModels={fetchModels}
-                    completeOnboarding={async () => {
-                        await fetchModels();
-                        await updateSettings({ onboarding_completed: true });
-                    }}
-                />
+                <div className="space-y-6">
+                    <LLMHeader connectionStatus={connectionStatus} />
+                    
+                    <SettingsUI.Container className="mb-6">
+                        <ProviderSelector
+                            activeProvider={activeProvider}
+                            onProviderChange={handleProviderChange}
+                        />
+                    </SettingsUI.Container>
+
+                    <SettingsUI.Container>
+                        <div className="p-4">
+                            <h3 className="text-sm font-medium text-zinc-200 mb-4">
+                                {t('Ollama Setup')}
+                            </h3>
+                            <LLMConnectOnboarding
+                                settings={settings}
+                                testConnection={testConnection}
+                                pullModel={pullModel}
+                                updateSettings={updateSettings}
+                                models={models}
+                                fetchModels={fetchModels}
+                                completeOnboarding={async () => {
+                                    await fetchModels();
+                                    await updateSettings({ onboarding_completed: true });
+                                }}
+                            />
+                        </div>
+                    </SettingsUI.Container>
+                </div>
             </main>
         );
     }
