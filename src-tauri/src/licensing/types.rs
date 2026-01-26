@@ -38,6 +38,14 @@ pub struct CheckSubscriptionResponse {
     pub status: SubscriptionStatus,
     pub message: Option<String>,
     pub expires_at: Option<DateTime<Utc>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timestamp: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SignedResponse {
+    pub data: CheckSubscriptionResponse,
+    pub signature: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

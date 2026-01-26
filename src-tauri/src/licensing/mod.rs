@@ -1,4 +1,5 @@
 pub mod client;
+pub mod crypto;
 pub mod helpers;
 pub mod licensing;
 pub mod store;

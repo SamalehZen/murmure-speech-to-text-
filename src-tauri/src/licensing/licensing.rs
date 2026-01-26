@@ -16,7 +16,7 @@ pub async fn validate_license(app: &AppHandle) -> Result<(), String> {
 
     let client = LicenseClient::from_env();
 
-    match client.check_subscription(&device_id).await {
+    match client.check_subscription_unsigned(&device_id).await {
         Ok(response) => handle_subscription_response(app, &device_id, &stored_state, response),
         Err(e) => handle_network_error(app, &stored_state, e),
     }
