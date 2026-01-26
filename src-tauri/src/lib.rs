@@ -9,6 +9,7 @@ mod engine;
 mod formatting_rules;
 mod history;
 mod http_api;
+mod licensing;
 mod llm;
 mod model;
 mod onboarding;
@@ -87,6 +88,16 @@ pub fn run() {
     builder
         .device_event_filter(DeviceEventFilter::Never)
         .setup(|app| {
+            let app_handle = app.handle().clone();
+            let license_result = tauri::async_runtime::block_on(async {
+                licensing::validate_license(&app_handle).await
+            });
+
+            if let Err(e) = license_result {
+                error!("License validation failed: {}", e);
+                return Err(e.into());
+            }
+
             let model =
                 Arc::new(Model::new(app.handle().clone()).expect("Failed to initialize model"));
             app.manage(model);
@@ -218,7 +229,11 @@ pub fn run() {
             get_formatting_settings,
             set_formatting_settings,
             get_log_level,
-            set_log_level
+            set_log_level,
+            get_license_status,
+            force_license_check,
+            get_device_id,
+            get_grace_period_info
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
