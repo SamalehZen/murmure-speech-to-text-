@@ -1,3 +1,4 @@
+pub mod admin;
 pub mod clipboard;
 pub mod dictionary;
 pub mod formatting_rules;
@@ -13,6 +14,7 @@ pub mod settings;
 pub mod shortcuts;
 pub mod stats;
 
+pub use admin::*;
 pub use clipboard::*;
 pub use dictionary::*;
 pub use formatting_rules::*;

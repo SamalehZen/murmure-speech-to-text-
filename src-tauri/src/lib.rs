@@ -233,7 +233,18 @@ pub fn run() {
             get_license_status,
             force_license_check,
             get_device_id,
-            get_grace_period_info
+            get_grace_period_info,
+            admin_get_stats,
+            admin_list_devices,
+            admin_list_companies,
+            admin_list_users,
+            admin_block_device,
+            admin_unblock_device,
+            admin_block_company,
+            admin_unblock_company,
+            admin_block_user,
+            admin_unblock_user,
+            admin_get_audit_log
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
