@@ -39,10 +39,7 @@ DECLARE
     v_secret TEXT;
 BEGIN
     v_timestamp := extract(epoch from now())::BIGINT;
-    v_secret := current_setting('app.settings.license_secret', true);
-    IF v_secret IS NULL THEN
-        v_secret := 'default-secret-change-in-production';
-    END IF;
+    v_secret := '1cbb5c2d4104ce5f0431141a2cf7fdb3426c24e8fd0a1066963b4b399c8aec83';
 
     -- Find device
     SELECT * INTO v_device FROM devices WHERE device_id = p_device_id;
