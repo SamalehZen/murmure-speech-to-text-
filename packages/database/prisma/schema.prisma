@@ -155,6 +155,27 @@ model GlobalConfig {
     updatedAt       DateTime @updatedAt
 }
 
+// ============== CONFIG VERSIONING (Audit) ==============
+model ConfigVersion {
+    id            String       @id @default(cuid())
+    configType    ConfigType
+    previousValue Json
+    newValue      Json
+    changedBy     String
+    changedAt     DateTime     @default(now())
+    note          String?
+
+    @@index([configType, changedAt])
+}
+
+enum ConfigType {
+    shortcuts
+    llm
+    dictionary
+    prompts
+    formatting
+}
+
 // ============== DAILY USAGE (Rate Limiting) ==============
 model DailyUsage {
     id       String   @id @default(cuid())
