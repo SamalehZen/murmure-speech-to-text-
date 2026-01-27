@@ -1,4 +1,3 @@
-use chrono::Utc;
 use log::{error, info, warn};
 use tauri::AppHandle;
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
