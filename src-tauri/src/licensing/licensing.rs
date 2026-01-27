@@ -1,4 +1,4 @@
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 use tauri::AppHandle;
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
@@ -10,14 +10,34 @@ use super::types::{DeviceInfo, LicenseState, RegisterDeviceRequest, Subscription
 const GRACE_PERIOD_DAYS: i64 = 10;
 
 pub async fn validate_license(app: &AppHandle) -> Result<(), String> {
-    let device_id = store::get_or_create_device_id(app)?;
+    info!("Starting license validation...");
+    
+    let device_id = match store::get_or_create_device_id(app) {
+        Ok(id) => {
+            debug!("Device ID: {}", id);
+            id
+        }
+        Err(e) => {
+            error!("Failed to get device ID: {}", e);
+            return Err(e);
+        }
+    };
+    
     let stored_state = store::load_license_state(app);
+    debug!("Stored license state exists: {}", stored_state.is_some());
 
     let client = LicenseClient::from_env();
+    info!("Checking subscription with server...");
 
     match client.check_subscription_unsigned(&device_id).await {
-        Ok(response) => handle_subscription_response(app, &device_id, &stored_state, response),
-        Err(e) => handle_network_error(app, &stored_state, e),
+        Ok(response) => {
+            info!("Server response received, status: {:?}", response.status);
+            handle_subscription_response(app, &device_id, &stored_state, response)
+        }
+        Err(e) => {
+            warn!("Server check failed: {}", e);
+            handle_network_error(app, &stored_state, e)
+        }
     }
 }
 
@@ -44,7 +64,11 @@ fn handle_subscription_response(
                 last_successful_check: get_current_timestamp(),
                 grace_period_days: GRACE_PERIOD_DAYS as u32,
             };
-            store::save_license_state(app, &state)?;
+            
+            if let Err(e) = store::save_license_state(app, &state) {
+                warn!("Failed to save license state: {}", e);
+            }
+            
             info!("License validated successfully");
             Ok(())
         }

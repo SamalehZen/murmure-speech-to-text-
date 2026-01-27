@@ -109,19 +109,23 @@ impl LicenseClient {
         }
 
         let text = response.text().await.map_err(|e| e.to_string())?;
+        log::debug!("License server response: {}", text);
 
         if let Ok(signed) = serde_json::from_str::<SignedResponse>(&text) {
+            log::debug!("Parsed as SignedResponse, status: {:?}", signed.data.status);
             let data_json = serde_json::to_string(&signed.data).map_err(|e| e.to_string())?;
 
             if verify_signature(&data_json, &signed.signature, &self.license_secret) {
-                return Ok(signed.data);
+                log::info!("Signature verified successfully");
             } else {
-                warn!("Invalid signature, but continuing with unsigned response for compatibility");
+                log::warn!("Invalid signature, but continuing for compatibility");
             }
+            return Ok(signed.data);
         }
 
+        log::debug!("Trying to parse as direct CheckSubscriptionResponse");
         serde_json::from_str::<CheckSubscriptionResponse>(&text)
-            .map_err(|e| format!("Failed to parse response: {}", e))
+            .map_err(|e| format!("Failed to parse response: {} - Raw: {}", e, text))
     }
 
     pub async fn register_device(&self, request: RegisterDeviceRequest) -> Result<(), String> {
