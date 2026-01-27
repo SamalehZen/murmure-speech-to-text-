@@ -33,3 +33,24 @@ resources/parakeet-tdt-0.6b-v3-int8/
 
 e2e-tests/.tmp/*
 .pnpm-store/
+
+# Turbo
+.turbo
+
+# Next.js
+.next
+out
+
+# Environment
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Prisma
+packages/database/prisma/migrations/*_migration.sql
+
+# Build outputs
+apps/admin/.next
+apps/admin/out

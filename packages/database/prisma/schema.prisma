@@ -1,0 +1,169 @@
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+// ============== USERS ==============
+model User {
+    id          String     @id @default(cuid())
+    email       String     @unique
+    name        String?
+    password    String?
+    image       String?
+    status      UserStatus @default(ACTIVE)
+    role        UserRole   @default(USER)
+    plan        Plan       @default(FREE)
+    language    String     @default("en")
+    createdAt   DateTime   @default(now())
+    updatedAt   DateTime   @updatedAt
+    lastLoginAt DateTime?
+
+    subscription   Subscription?
+    usageLogs      UsageLog[]
+    transcriptions Transcription[]
+    accounts       Account[]
+    sessions       Session[]
+    dailyUsages    DailyUsage[]
+}
+
+enum UserStatus {
+    ACTIVE
+    SUSPENDED
+    BLOCKED
+}
+
+enum UserRole {
+    USER
+    ADMIN
+}
+
+enum Plan {
+    FREE
+    PRO
+    BUSINESS
+}
+
+// ============== AUTH (NextAuth) ==============
+model Account {
+    id                String  @id @default(cuid())
+    userId            String
+    type              String
+    provider          String
+    providerAccountId String
+    refresh_token     String? @db.Text
+    access_token      String? @db.Text
+    expires_at        Int?
+    token_type        String?
+    scope             String?
+    id_token          String? @db.Text
+    session_state     String?
+
+    user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@unique([provider, providerAccountId])
+}
+
+model Session {
+    id           String   @id @default(cuid())
+    sessionToken String   @unique
+    userId       String
+    expires      DateTime
+    user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+    identifier String
+    token      String   @unique
+    expires    DateTime
+
+    @@unique([identifier, token])
+}
+
+// ============== SUBSCRIPTIONS ==============
+model Subscription {
+    id                     String             @id @default(cuid())
+    userId                 String             @unique
+    stripeCustomerId       String?            @unique
+    stripeSubscriptionId   String?            @unique
+    stripePriceId          String?
+    stripeCurrentPeriodEnd DateTime?
+    status                 SubscriptionStatus @default(ACTIVE)
+    createdAt              DateTime           @default(now())
+    updatedAt              DateTime           @updatedAt
+
+    user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum SubscriptionStatus {
+    ACTIVE
+    CANCELED
+    PAST_DUE
+    UNPAID
+    TRIALING
+}
+
+// ============== USAGE TRACKING ==============
+model UsageLog {
+    id        String      @id @default(cuid())
+    userId    String
+    provider  LLMProvider
+    model     String
+    tokensIn  Int
+    tokensOut Int
+    cost      Decimal     @db.Decimal(10, 6)
+    createdAt DateTime    @default(now())
+
+    user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@index([userId, createdAt])
+}
+
+enum LLMProvider {
+    OPENAI
+    ANTHROPIC
+    GOOGLE
+}
+
+// ============== TRANSCRIPTIONS ==============
+model Transcription {
+    id            String   @id @default(cuid())
+    userId        String
+    originalText  String   @db.Text
+    processedText String?  @db.Text
+    language      String
+    duration      Int
+    wordCount     Int
+    createdAt     DateTime @default(now())
+
+    user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@index([userId, createdAt])
+}
+
+// ============== GLOBAL CONFIG (Admin-controlled) ==============
+model GlobalConfig {
+    id              String   @id @default("global")
+    shortcuts       Json     @default("{}")
+    llmSettings     Json     @default("{}")
+    dictionary      Json     @default("[]")
+    formattingRules Json     @default("[]")
+    appPrompts      Json     @default("{}")
+    updatedAt       DateTime @updatedAt
+}
+
+// ============== DAILY USAGE (Rate Limiting) ==============
+model DailyUsage {
+    id       String   @id @default(cuid())
+    userId   String
+    date     DateTime @db.Date
+    requests Int      @default(0)
+
+    user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@unique([userId, date])
+    @@index([userId, date])
+}
