@@ -10,6 +10,7 @@ import {
     Sparkles,
     Wrench,
     AlignLeft,
+    Shield,
 } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
@@ -175,6 +176,19 @@ export const AppSidebar = () => {
                                 <Link to="/about">
                                     <Info />
                                     <span>{t('About')}</span>
+                                </Link>
+                            </SidebarMenuButton>
+                        </SidebarMenuItem>
+
+                        <SidebarMenuItem>
+                            <SidebarMenuButton
+                                asChild
+                                isActive={pathname === '/admin'}
+                                data-testid="admin-tab"
+                            >
+                                <Link to="/admin">
+                                    <Shield />
+                                    <span>{t('License Admin')}</span>
                                 </Link>
                             </SidebarMenuButton>
                         </SidebarMenuItem>
