@@ -1,4 +1,4 @@
-import { Shield, Lock, Code, Cpu, Github, BadgeEuro } from 'lucide-react';
+import { Shield, Lock, Code, Cloud, Github, BadgeEuro } from 'lucide-react';
 import { Separator } from '../../components/separator';
 import { Page } from '@/components/page';
 import { Typography } from '@/components/typography';
@@ -12,16 +12,16 @@ export const About = () => {
     const features = [
         {
             icon: Lock,
-            title: t('Privacy First'),
+            title: t('Secure'),
             description: t(
-                'All processing happens locally on your device. No data ever leaves your computer.'
+                'Your audio is processed through Google Gemini API with enterprise-grade security.'
             ),
         },
         {
             icon: Shield,
-            title: t('No Telemetry'),
+            title: t('No Storage'),
             description: t(
-                'Zero tracking, zero analytics. Your data stays yours, always.'
+                'Audio data is not stored. Only transcribed text is kept locally (last 5 transcriptions).'
             ),
         },
         {
@@ -32,10 +32,10 @@ export const About = () => {
             ),
         },
         {
-            icon: Cpu,
-            title: t('Powered by Parakeet'),
+            icon: Cloud,
+            title: t('Powered by Gemini'),
             description: t(
-                "NVIDIA's state-of-the-art speech recognition model runs entirely on-device."
+                "Google's Gemini 2.5 Flash provides fast, accurate speech-to-text transcription."
             ),
         },
     ];
@@ -48,7 +48,7 @@ export const About = () => {
                 </Typography.MainTitle>
                 <Typography.Paragraph className="text-zinc-400">
                     {t(
-                        'Privacy-first speech-to-text, running entirely on your machine'
+                        'Speech-to-text powered by Gemini 2.5 Flash'
                     )}
                 </Typography.Paragraph>
             </Page.Header>
@@ -75,7 +75,7 @@ export const About = () => {
                         <Typography.Title>{t('Technology')}</Typography.Title>
                         <Typography.Paragraph>
                             {t(
-                                "Murmure uses NVIDIA's Parakeet TDT model, a highly optimized transformer-based speech recognition system designed for low-latency on-device inference."
+                                "Murmure uses Google's Gemini 2.5 Flash, a multimodal AI model that provides fast, accurate speech-to-text transcription. Requires an internet connection and a Google API key."
                             )}
                         </Typography.Paragraph>
                     </div>

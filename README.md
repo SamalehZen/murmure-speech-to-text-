@@ -1,17 +1,22 @@
 # Murmure
 
-A privacy-first, open-source speech-to-text application that runs entirely on your machine, powered by a neural network via NVIDIA’s [Parakeet TDT 0.6B v3 model](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3) for fast, local transcription. Murmure turns your voice into text with no internet connection and zero data collection, and supports 25 European languages.
+An open-source speech-to-text application powered by Google's [Gemini 2.5 Flash](https://ai.google.dev/gemini-api) for fast, accurate transcription. Murmure turns your voice into text with support for 25 European languages. Requires an internet connection and a Google API key.
 
-Learn more on the on the [official website](https://murmure.al1x-ai.com/).
+Learn more on the [official website](https://murmure.al1x-ai.com/).
 
 ![demo](public/murmure-screenshot-beautiful.png)
 
 ## Features
 
-- **Privacy First**: All processing happens locally on your device. No data ever leaves your computer.
-- **No Telemetry**: Zero tracking, zero analytics. Your data stays yours, always.
+- **Fast Transcription**: Powered by Gemini 2.5 Flash for quick, accurate speech-to-text conversion.
+- **App Detection**: Automatically formats transcriptions based on the active application context.
 - **Open Source**: Free and open source software. Inspect, modify, and contribute.
-- **Powered by [Parakeet TDT 0.6B v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3)**: NVIDIA’s latest model state-of-the-art speech recognition model runs entirely on-device for fast, low-latency transcription.
+- **Multi-language Support**: Supports 25 European languages for transcription.
+
+## Requirements
+
+- **Google API Key**: You need a Google Gemini API key to use Murmure. Configure it in Settings > LLM Connect.
+- **Internet Connection**: Required for transcription as audio is processed through Google's API.
 
 ## Supported Languages:
 
@@ -35,7 +40,7 @@ If you downloaded it from our **official GitHub releases**, you can safely conti
 ### Linux (Official)
 
 ⚠️ Murmure currently has limited support on Wayland-based distributions (except Fedora, which can fall back to X11 for some apps).  
-This appears to be related to Wayland’s sandbox restrictions for AppImages, the global shortcut to start recording will not work in this environment.  
+This appears to be related to Wayland's sandbox restrictions for AppImages, the global shortcut to start recording will not work in this environment.  
 No workaround is available yet. See #28
 
 1. Download Murmure_amd64.AppImage from [release](https://github.com/Kieirra/murmure/releases) page
@@ -52,7 +57,7 @@ pcm_dsnoop.c:567:(snd_pcm_dsnoop_open) unable to open slave`.
 
 ### MacOS (Official)
 
-⚠️ MacOS may show security warnings because Murmure **isn’t signed with a paid Apple certificate**. These warnings are expected for independent apps, and Murmure is safe to install.
+⚠️ MacOS may show security warnings because Murmure **isn't signed with a paid Apple certificate**. These warnings are expected for independent apps, and Murmure is safe to install.
 
 🛡️ We guarantee the installer is safe, contains **no malware**, and you can verify the source code or even compile it yourself if you prefer.
 
@@ -63,7 +68,7 @@ pcm_dsnoop.c:567:(snd_pcm_dsnoop_open) unable to open slave`.
 
 ### MacOS - Intel (Official) - Experimental
 
-⚠️ MacOS may show security warnings because Murmure **isn’t signed with a paid Apple certificate**. These warnings are expected for independent apps, and Murmure is safe to install.
+⚠️ MacOS may show security warnings because Murmure **isn't signed with a paid Apple certificate**. These warnings are expected for independent apps, and Murmure is safe to install.
 
 🛡️ We guarantee the installer is safe, contains **no malware**, and you can verify the source code or even compile it yourself if you prefer.
 
@@ -74,10 +79,16 @@ pcm_dsnoop.c:567:(snd_pcm_dsnoop_open) unable to open slave`.
 
 P.S. : This version is experimental
 
+## Setup
+
+1. **Get a Google API Key**: Visit [Google AI Studio](https://aistudio.google.com/app/apikey) to create a free API key.
+2. **Configure Murmure**: Go to Settings > LLM Connect and enter your Google API key.
+3. **Start transcribing**: Use the global shortcut to record your voice and transcribe.
+
 ## Usage
 
 Murmure provides a clean and focused speech-to-text experience.
-Once launched, simply start recording your voice. The text appears instantly, processed directly on your computer.
+Once launched, simply start recording your voice. The text appears instantly after processing.
 
 Typical use cases include:
 
@@ -85,11 +96,15 @@ Typical use cases include:
 - Writing notes hands-free
 - Capturing creative ideas or dictation
 
-Because all computation is local, no network connection is required.
-
 ## Technology
 
-Murmure uses the mode l[Parakeet TDT 0.6B v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3), a highly optimized, experimental transformer-based speech recognition model designed for low-latency, on-device inference. It combines fast transcription with strong accuracy across multiple languages, running efficiently on consumer GPUs or CPUs.
+Murmure uses [Gemini 2.5 Flash](https://ai.google.dev/gemini-api), Google's multimodal AI model for fast, accurate speech-to-text transcription. The audio is sent to Google's API for processing, and only the transcribed text is returned and optionally stored locally (last 5 transcriptions).
+
+## Data Privacy
+
+- **Audio Processing**: Your audio is sent to Google's Gemini API for transcription.
+- **Local Storage**: Only transcribed text is stored locally (last 5 transcriptions by default).
+- **No Telemetry**: Murmure itself does not collect any analytics or telemetry data.
 
 ## Changelog
 
@@ -114,9 +129,8 @@ See [CHANGELOG.md](./CHANGELOG.md).
 - [x] (1.7.0) ci(security): add Security Scanning with SonarQube
 - [x] (1.7.0) ci(security): improve static analysis for contributions (test, compilation, linting, etc.)
 - [x] (1.7.0) ci(build): nsis exe installer without administration privilege
-- [x] (R&D) Investigate the possibility of using MedASR (medical‑specialized ASR) in Murmure - KO see https://github.com/Kieirra/murmure/discussions/111
 - [ ] feat(rules): Add regex support for custom rules
-- [ ] feat(ui): Add a “?” helper in the “Replacement text” field (explain natural language input and real line breaks instead of `\n`)
+- [ ] feat(ui): Add a "?" helper in the "Replacement text" field (explain natural language input and real line breaks instead of `\n`)
 - [ ] feat(formatting): Allow rule reordering https://github.com/Kieirra/murmure/issues/104
 - [ ] feat(formatting): Improve rules label to make sentences https://github.com/Kieirra/murmure/issues/101#issuecomment-3751551213
 - [ ] feat(llm): Allow llm mode reordering https://github.com/Kieirra/murmure/issues/104
@@ -138,7 +152,7 @@ See [CHANGELOG.md](./CHANGELOG.md).
 
 ## Acknowledgments
 
-- Thanks to NVIDIA for releasing the model [Parakeet TDT 0.6B v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3), [Tauri](https://github.com/tauri-apps/tauri) for being an amazing tool, and to the open‑source community for their tools and libraries.
+- Thanks to Google for providing the [Gemini API](https://ai.google.dev/gemini-api), [Tauri](https://github.com/tauri-apps/tauri) for being an amazing tool, and to the open‑source community for their tools and libraries.
 
 ## License
 

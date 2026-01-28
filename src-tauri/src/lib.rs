@@ -5,12 +5,10 @@ mod audio;
 mod clipboard;
 mod commands;
 mod dictionary;
-mod engine;
 mod formatting_rules;
 mod history;
 mod http_api;
 mod llm;
-mod model;
 mod onboarding;
 mod overlay;
 mod settings;
@@ -19,17 +17,14 @@ mod stats;
 mod utils;
 
 use crate::shortcuts::init_shortcuts;
-use audio::preload_engine;
 use audio::types::AudioState;
 use commands::*;
 use dictionary::Dictionary;
 use http_api::HttpApiState;
 use llm::llm::pull_ollama_model;
 use log::{error, info, warn};
-use model::Model;
 use overlay::tray::setup_tray;
 use std::str::FromStr;
-use std::sync::Arc;
 use tauri::{DeviceEventFilter, Listener, Manager};
 use tauri_plugin_log::{Target, TargetKind};
 
@@ -57,8 +52,6 @@ pub fn run() {
                     Target::new(TargetKind::Webview),
                 ])
                 .level(log::LevelFilter::Trace)
-                .level_for("ort", log::LevelFilter::Warn)
-                .level_for("ort::logging", log::LevelFilter::Warn)
                 .level_for("zbus", log::LevelFilter::Warn)
                 .level_for("tracing", log::LevelFilter::Warn)
                 .level_for("symphonia_core", log::LevelFilter::Warn)
@@ -87,9 +80,6 @@ pub fn run() {
     builder
         .device_event_filter(DeviceEventFilter::Never)
         .setup(|app| {
-            let model =
-                Arc::new(Model::new(app.handle().clone()).expect("Failed to initialize model"));
-            app.manage(model);
             app.manage(AudioState::new());
 
             let mut s = settings::load_settings(app.handle());
@@ -108,10 +98,7 @@ pub fn run() {
             app.manage(Dictionary::new(dictionary.clone()));
             app.manage(HttpApiState::new());
 
-            match preload_engine(app.handle()) {
-                Ok(_) => info!("Transcription engine initialized and ready"),
-                Err(e) => info!("Transcription engine will be loaded on first use: {}", e),
-            }
+            info!("Murmure initialized with Gemini transcription engine");
 
             setup_tray(app.handle())?;
 
@@ -147,8 +134,6 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
-            is_model_available,
-            get_model_path,
             get_recent_transcriptions,
             clear_history,
             get_record_shortcut,

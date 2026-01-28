@@ -314,6 +314,32 @@ pub struct GoogleModelInfo {
     pub name: String,
 }
 
+#[derive(Debug, Serialize)]
+pub struct GoogleInlineData {
+    pub mime_type: String,
+    pub data: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct GoogleMultimodalPart {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub inline_data: Option<GoogleInlineData>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct GoogleMultimodalContent {
+    pub parts: Vec<GoogleMultimodalPart>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct GoogleMultimodalRequest {
+    pub contents: Vec<GoogleMultimodalContent>,
+    #[serde(rename = "generationConfig", skip_serializing_if = "Option::is_none")]
+    pub generation_config: Option<GoogleGenerationConfig>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActiveWindowInfo {
     pub app_name: String,
