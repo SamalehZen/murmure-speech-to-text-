@@ -3,6 +3,7 @@
 mod app_context;
 mod audio;
 mod clipboard;
+mod cloud_sync;
 mod commands;
 mod dictionary;
 mod engine;
@@ -138,6 +139,25 @@ pub fn run() {
                 crate::shortcuts::actions::force_stop_recording(&app_handle);
             });
 
+            let sync_app_handle = app.handle().clone();
+            std::thread::spawn(move || {
+                let rt = tokio::runtime::Runtime::new();
+                if let Ok(runtime) = rt {
+                    runtime.block_on(async {
+                        if cloud_sync::storage::is_authenticated(&sync_app_handle) {
+                            info!("Cloud sync: User is authenticated, syncing config...");
+                            match cloud_sync::sync::sync_config_if_needed(&sync_app_handle).await {
+                                Ok(Some(_)) => info!("Cloud sync: Config synced successfully"),
+                                Ok(None) => info!("Cloud sync: No sync needed or not authenticated"),
+                                Err(e) => warn!("Cloud sync: Failed to sync config: {}", e),
+                            }
+                        } else {
+                            info!("Cloud sync: User not authenticated, skipping sync");
+                        }
+                    });
+                }
+            });
+
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -218,7 +238,18 @@ pub fn run() {
             get_formatting_settings,
             set_formatting_settings,
             get_log_level,
-            set_log_level
+            set_log_level,
+            cloud_login,
+            cloud_login_with_token,
+            cloud_logout,
+            cloud_get_auth_state,
+            cloud_get_current_user,
+            cloud_is_authenticated,
+            cloud_sync_config,
+            cloud_get_cached_config,
+            cloud_get_sync_status,
+            cloud_sync_if_needed,
+            cloud_apply_dictionary
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

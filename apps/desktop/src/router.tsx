@@ -12,6 +12,7 @@ import { CustomDictionary } from './features/settings/custom-dictionary/custom-d
 import { FormattingRules } from './features/settings/formatting-rules/formatting-rules';
 import { System } from './features/settings/system/system';
 import { LLMConnect } from './features/llm-connect/llm-connect';
+import { CloudSync } from './features/cloud-sync/cloud-sync';
 
 const rootRoute = createRootRoute({
     component: () => <Layout />,
@@ -71,11 +72,18 @@ const aboutRoute = createRoute({
     component: About,
 });
 
+const settingsCloudSyncRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/settings/cloud-sync',
+    component: CloudSync,
+});
+
 const routeTree = rootRoute.addChildren([
     indexRoute,
     settingsIndexRoute,
     settingsShortcutsRoute,
     settingsSystemRoute,
+    settingsCloudSyncRoute,
     personalizeIndexRoute,
     personalizeCustomDictionaryRoute,
     personalizeFormattingRulesRoute,
