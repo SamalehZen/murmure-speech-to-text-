@@ -4,7 +4,7 @@ use hound::{WavSpec, WavWriter};
 use log::warn;
 use std::fs::File;
 use std::io::BufWriter;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tauri::Manager;
 
 pub fn ensure_recordings_dir(app: &tauri::AppHandle) -> Result<PathBuf> {
