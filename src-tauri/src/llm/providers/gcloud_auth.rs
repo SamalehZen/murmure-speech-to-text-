@@ -1,4 +1,3 @@
-use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -25,8 +24,6 @@ struct JwtClaims {
 #[derive(Debug, Deserialize)]
 struct TokenResponse {
     access_token: String,
-    expires_in: u64,
-    token_type: String,
 }
 
 pub struct GoogleCloudAuth {
@@ -71,12 +68,14 @@ impl GoogleCloudAuth {
             .map_err(|e| format!("Failed to encode JWT: {}", e))?;
 
         let client = Client::new();
+        let params = [
+            ("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer"),
+            ("assertion", &jwt),
+        ];
+
         let response = client
             .post(&self.credentials.token_uri)
-            .form(&[
-                ("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer"),
-                ("assertion", &jwt),
-            ])
+            .form(&params)
             .send()
             .await
             .map_err(|e| format!("Token request failed: {}", e))?;
