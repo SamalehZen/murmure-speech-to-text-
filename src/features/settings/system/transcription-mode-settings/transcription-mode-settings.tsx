@@ -22,8 +22,6 @@ export const TranscriptionModeSettings = () => {
     } = useTranscriptionModeState();
 
     const handleModeChange = async (newMode: TranscriptionMode) => {
-        const modeConfig = TRANSCRIPTION_MODES.find((m) => m.value === newMode);
-
         if (newMode === 'cloud_fast' && !hasGoogleApiKey) {
             return;
         }
