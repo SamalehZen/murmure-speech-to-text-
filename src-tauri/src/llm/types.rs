@@ -341,13 +341,6 @@ pub struct GoogleMultimodalRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ActiveWindowInfo {
-    pub app_name: String,
-    pub window_title: String,
-    pub process_name: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppContextEvent {
     pub app_name: String,
     pub rule_name: String,
