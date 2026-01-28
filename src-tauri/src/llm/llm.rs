@@ -1,14 +1,10 @@
-use crate::app_context;
-use crate::dictionary;
 use crate::llm::helpers::load_llm_connect_settings;
 use crate::llm::providers;
 use crate::llm::types::{
-    AppContextEvent, AppMatchType, AppPromptRule, LLMConnectSettings, LLMProvider,
-    OllamaGenerateRequest, OllamaModel, OllamaOptions, OllamaPullRequest,
+    LLMProvider, OllamaGenerateRequest, OllamaModel, OllamaOptions, OllamaPullRequest,
     OllamaPullResponse, OllamaTagsResponse, ProviderConfig,
 };
 use log::warn;
-use regex::Regex;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -22,63 +18,6 @@ fn get_provider_key(provider: &LLMProvider) -> String {
     }
 }
 
-fn rule_matches(window: &app_context::ActiveWindowInfo, rule: &AppPromptRule) -> bool {
-    match rule.match_type {
-        AppMatchType::AppNameContains => window
-            .app_name
-            .to_lowercase()
-            .contains(&rule.match_pattern.to_lowercase()),
-        AppMatchType::WindowTitleContains => window
-            .window_title
-            .to_lowercase()
-            .contains(&rule.match_pattern.to_lowercase()),
-        AppMatchType::ProcessNameEquals => {
-            window.process_name.to_lowercase() == rule.match_pattern.to_lowercase()
-        }
-        AppMatchType::WindowTitleRegex => Regex::new(&rule.match_pattern)
-            .map(|r| r.is_match(&window.window_title))
-            .unwrap_or(false),
-    }
-}
-
-fn get_effective_prompt(
-    app: &AppHandle,
-    settings: &LLMConnectSettings,
-) -> Result<String, String> {
-    let default_prompt = settings
-        .modes
-        .get(settings.active_mode_index)
-        .map(|m| m.prompt.clone())
-        .unwrap_or_default();
-
-    if !settings.app_detection_enabled {
-        return Ok(default_prompt);
-    }
-
-    let window_info = match app_context::get_active_window() {
-        Ok(info) => info,
-        Err(_) => return Ok(default_prompt),
-    };
-
-    let mut rules = settings.app_rules.clone();
-    rules.sort_by(|a, b| b.priority.cmp(&a.priority));
-
-    for rule in rules.iter().filter(|r| r.enabled) {
-        if rule_matches(&window_info, rule) {
-            let _ = app.emit(
-                "app-context-matched",
-                AppContextEvent {
-                    app_name: window_info.app_name.clone(),
-                    rule_name: rule.name.clone(),
-                },
-            );
-            return Ok(rule.prompt_template.clone());
-        }
-    }
-
-    Ok(default_prompt)
-}
-
 async fn generate_with_provider(
     config: &ProviderConfig,
     prompt: &str,
@@ -90,70 +29,6 @@ async fn generate_with_provider(
         LLMProvider::Anthropic => providers::anthropic::generate(config, prompt, temperature).await,
         LLMProvider::Google => providers::google::generate(config, prompt, temperature).await,
         LLMProvider::OpenRouter => providers::openrouter::generate(config, prompt, temperature).await,
-    }
-}
-
-pub async fn post_process_with_llm(
-    app: &AppHandle,
-    transcription: String,
-    force_bypass: bool,
-) -> Result<String, String> {
-    if force_bypass {
-        return Ok(transcription);
-    }
-
-    let settings = load_llm_connect_settings(app);
-    let provider_key = get_provider_key(&settings.active_provider);
-    
-    let provider_config = if settings.active_provider == LLMProvider::Ollama {
-        ProviderConfig {
-            provider: LLMProvider::Ollama,
-            api_key: None,
-            base_url: settings.url.clone(),
-            model: settings
-                .modes
-                .get(settings.active_mode_index)
-                .map(|m| m.model.clone())
-                .unwrap_or_default(),
-            available_models: Vec::new(),
-        }
-    } else {
-        settings
-            .providers
-            .get(&provider_key)
-            .cloned()
-            .ok_or("Provider not configured")?
-    };
-
-    if provider_config.model.is_empty() {
-        return Err("No model selected".to_string());
-    }
-
-    let _ = app.emit("llm-processing-start", ());
-
-    let dictionary_words = dictionary::load(app)
-        .unwrap_or_default()
-        .into_keys()
-        .collect::<Vec<String>>()
-        .join(", ");
-
-    let prompt_template = get_effective_prompt(app, &settings)?;
-    let prompt = prompt_template
-        .replace("{{TRANSCRIPT}}", &transcription)
-        .replace("{transcript}", &transcription)
-        .replace("{{DICTIONARY}}", &dictionary_words)
-        .replace("{dictionary}", &dictionary_words);
-
-    let result = generate_with_provider(&provider_config, &prompt, 0.0).await;
-
-    let _ = app.emit("llm-processing-end", ());
-
-    match result {
-        Ok(response) => Ok(response),
-        Err(e) => {
-            warn!("LLM processing failed: {}", e);
-            Err(e)
-        }
     }
 }
 
