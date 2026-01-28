@@ -1,17 +1,13 @@
 use crate::audio::recorder::AudioRecorder;
-use crate::engine::ParakeetEngine;
 use cpal::Device;
 use parking_lot::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 pub struct AudioState {
     pub recorder: Mutex<Option<AudioRecorder>>,
-    pub engine: Mutex<Option<ParakeetEngine>>,
     pub current_file_name: Mutex<Option<String>>,
     recording_mode: std::sync::atomic::AtomicU8,
-    /// Flag indicating recording duration limit has been reached
     pub limit_reached: std::sync::Arc<AtomicBool>,
-    /// Cached audio input device to avoid re-enumerating devices on each recording
     pub cached_device: Mutex<Option<Device>>,
 }
 
@@ -38,7 +34,6 @@ impl AudioState {
     pub fn new() -> Self {
         Self {
             recorder: Mutex::new(None),
-            engine: Mutex::new(None),
             current_file_name: Mutex::new(None),
             recording_mode: std::sync::atomic::AtomicU8::new(RecordingMode::Standard as u8),
             limit_reached: std::sync::Arc::new(AtomicBool::new(false)),
@@ -62,12 +57,10 @@ impl AudioState {
         self.limit_reached.clone()
     }
 
-    /// Sets the cached audio device
     pub fn set_cached_device(&self, device: Option<Device>) {
         *self.cached_device.lock() = device;
     }
 
-    /// Gets a clone of the cached audio device
     pub fn get_cached_device(&self) -> Option<Device> {
         self.cached_device.lock().clone()
     }

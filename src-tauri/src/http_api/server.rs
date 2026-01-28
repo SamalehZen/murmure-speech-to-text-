@@ -92,26 +92,23 @@ async fn transcribe_handler(
                             .into_response();
                     }
 
-                    let result = match audio::preload_engine(&app) {
-                        Ok(_) => match audio::transcribe_audio(&app, &temp_path) {
-                            Ok(raw_text) => {
-                                let text = match get_cc_rules_path(&app) {
-                                    Ok(cc_rules_path) => {
-                                        let dictionary = app.state::<Dictionary>().get();
-                                        fix_transcription_with_dictionary(
-                                            raw_text,
-                                            dictionary,
-                                            cc_rules_path,
-                                        )
-                                    }
-                                    Err(_) => raw_text,
-                                };
+                    let result = match audio::transcribe_audio(&app, &temp_path).await {
+                        Ok(raw_text) => {
+                            let text = match get_cc_rules_path(&app) {
+                                Ok(cc_rules_path) => {
+                                    let dictionary = app.state::<Dictionary>().get();
+                                    fix_transcription_with_dictionary(
+                                        raw_text,
+                                        dictionary,
+                                        cc_rules_path,
+                                    )
+                                }
+                                Err(_) => raw_text,
+                            };
 
-                                Ok(text)
-                            }
-                            Err(e) => Err(format!("Transcription failed: {}", e)),
-                        },
-                        Err(e) => Err(format!("Model not available: {}", e)),
+                            Ok(text)
+                        }
+                        Err(e) => Err(format!("Transcription failed: {}", e)),
                     };
 
                     let _ = std::fs::remove_file(&temp_path);

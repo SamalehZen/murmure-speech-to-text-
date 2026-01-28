@@ -42,18 +42,6 @@ jobs:
             - name: Install pnpm
               run: npm install -g pnpm
 
-            - name: Download & extract ONNX model (macOS)
-              shell: bash
-              run: |
-                  set -euo pipefail
-                  url="https://github.com/Kieirra/murmure-model/releases/download/1.0.0/parakeet-tdt-0.6b-v3-int8.zip"
-                  tmp="$(mktemp -t model_zip_XXXXXX).zip"
-                  echo "Downloading $url"
-                  curl -L -o "$tmp" "$url"
-                  echo "Unzipping into ./resources"
-                  unzip -o "$tmp" -d resources
-                  ls -al resources
-
             - name: Install frontend deps
               run: pnpm install
 
