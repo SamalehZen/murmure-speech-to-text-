@@ -77,6 +77,10 @@ pub struct LLMConnectSettings {
     pub app_detection_enabled: bool,
     #[serde(default)]
     pub app_rules: Vec<AppPromptRule>,
+    #[serde(default)]
+    pub google_cloud_credentials_path: Option<String>,
+    #[serde(default)]
+    pub google_cloud_project_id: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -156,6 +160,8 @@ impl Default for LLMConnectSettings {
             providers,
             app_detection_enabled: false,
             app_rules: Vec::new(),
+            google_cloud_credentials_path: None,
+            google_cloud_project_id: None,
         }
     }
 }

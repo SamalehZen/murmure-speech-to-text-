@@ -7,6 +7,32 @@ use std::io::BufWriter;
 use std::path::{Path, PathBuf};
 use tauri::Manager;
 
+pub struct PreparedContext {
+    pub prompt_template: String,
+    pub app_name: Option<String>,
+    pub window_title: Option<String>,
+}
+
+pub fn detect_pause(samples: &[f32], sample_rate: u32) -> Option<usize> {
+    const SILENCE_THRESHOLD: f32 = 0.01;
+    const PAUSE_DURATION_MS: u32 = 500;
+
+    let samples_for_pause = (sample_rate * PAUSE_DURATION_MS / 1000) as usize;
+    let mut silence_count = 0;
+
+    for (i, &sample) in samples.iter().enumerate() {
+        if sample.abs() < SILENCE_THRESHOLD {
+            silence_count += 1;
+            if silence_count >= samples_for_pause {
+                return Some(i - samples_for_pause);
+            }
+        } else {
+            silence_count = 0;
+        }
+    }
+    None
+}
+
 pub fn ensure_recordings_dir(app: &tauri::AppHandle) -> Result<PathBuf> {
     let recordings = app
         .path()

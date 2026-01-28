@@ -49,6 +49,9 @@ tauri-plugin-dialog = "~2.6"
 chrono = { version = "0.4", features = ["clock"] }
 tauri-plugin-store = "2"
 tauri-plugin-log = "2"
+tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
+base64 = "0.22"
+jsonwebtoken = "9"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-autostart = "2"

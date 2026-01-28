@@ -1,4 +1,63 @@
+use crate::settings::TranscriptionMode;
 use tauri::{command, AppHandle};
+
+#[command]
+pub fn get_transcription_mode(app: AppHandle) -> Result<String, String> {
+    let s = crate::settings::load_settings(&app);
+    let mode = match s.transcription_mode {
+        TranscriptionMode::Offline => "offline",
+        TranscriptionMode::CloudFast => "cloud_fast",
+        TranscriptionMode::CloudPrecision => "cloud_precision",
+    };
+    Ok(mode.to_string())
+}
+
+#[command]
+pub fn set_transcription_mode(app: AppHandle, mode: String) -> Result<(), String> {
+    let transcription_mode = match mode.as_str() {
+        "cloud_fast" => TranscriptionMode::CloudFast,
+        "cloud_precision" => TranscriptionMode::CloudPrecision,
+        _ => TranscriptionMode::Offline,
+    };
+
+    let mut s = crate::settings::load_settings(&app);
+    s.transcription_mode = transcription_mode;
+    crate::settings::save_settings(&app, &s)
+}
+
+#[command]
+pub fn has_google_api_key(app: AppHandle) -> bool {
+    let settings = crate::llm::load_llm_connect_settings(&app);
+    settings
+        .providers
+        .get("google")
+        .and_then(|p| p.api_key.as_ref())
+        .map(|k| !k.is_empty())
+        .unwrap_or(false)
+}
+
+#[command]
+pub fn get_google_cloud_credentials_path(app: AppHandle) -> Option<String> {
+    let settings = crate::llm::load_llm_connect_settings(&app);
+    settings.google_cloud_credentials_path
+}
+
+#[command]
+pub fn set_google_cloud_credentials_path(app: AppHandle, path: Option<String>) -> Result<(), String> {
+    let mut settings = crate::llm::load_llm_connect_settings(&app);
+    settings.google_cloud_credentials_path = path;
+    crate::llm::save_llm_connect_settings(&app, &settings)
+}
+
+#[command]
+pub fn has_google_cloud_credentials(app: AppHandle) -> bool {
+    let settings = crate::llm::load_llm_connect_settings(&app);
+    settings
+        .google_cloud_credentials_path
+        .as_ref()
+        .map(|p| !p.is_empty() && std::path::Path::new(p).exists())
+        .unwrap_or(false)
+}
 
 #[command]
 pub fn get_current_language(app: AppHandle) -> Result<String, String> {

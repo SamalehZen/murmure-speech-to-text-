@@ -218,7 +218,13 @@ pub fn run() {
             get_formatting_settings,
             set_formatting_settings,
             get_log_level,
-            set_log_level
+            set_log_level,
+            get_transcription_mode,
+            set_transcription_mode,
+            has_google_api_key,
+            get_google_cloud_credentials_path,
+            set_google_cloud_credentials_path,
+            has_google_cloud_credentials
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
