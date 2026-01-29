@@ -32,7 +32,11 @@ async fn generate_with_provider(
     }
 }
 
-pub async fn process_command_with_llm(app: &AppHandle, prompt: String) -> Result<String, String> {
+pub async fn process_command_with_llm(
+    app: &AppHandle,
+    user_text: String,
+    system_prompt: Option<String>,
+) -> Result<String, String> {
     let settings = load_llm_connect_settings(app);
     let provider_key = get_provider_key(&settings.active_provider);
 
@@ -60,9 +64,23 @@ pub async fn process_command_with_llm(app: &AppHandle, prompt: String) -> Result
         return Err("No model selected".to_string());
     }
 
+    let full_prompt = match system_prompt {
+        Some(prompt) if !prompt.trim().is_empty() => {
+            if prompt.contains("{{TRANSCRIPT}}") {
+                prompt.replace("{{TRANSCRIPT}}", &user_text)
+            } else {
+                format!(
+                    "{}\n\nUser input:\n{}\n\nRespond with only the reformatted text, nothing else.",
+                    prompt, user_text
+                )
+            }
+        }
+        _ => user_text,
+    };
+
     let _ = app.emit("llm-processing-start", ());
 
-    let result = generate_with_provider(&provider_config, &prompt, 0.0).await;
+    let result = generate_with_provider(&provider_config, &full_prompt, 0.0).await;
 
     let _ = app.emit("llm-processing-end", ());
 

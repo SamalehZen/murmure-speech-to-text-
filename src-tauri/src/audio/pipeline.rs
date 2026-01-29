@@ -139,6 +139,49 @@ fn apply_dictionary_and_rules(app: &AppHandle, text: String) -> Result<String> {
     ))
 }
 
+fn get_command_mode_prompt(app: &AppHandle) -> Option<String> {
+    let settings = load_llm_connect_settings(app);
+
+    if !settings.app_detection_enabled {
+        debug!("App detection is disabled, no prompt for command mode");
+        return None;
+    }
+
+    let window_info = match app_context::get_active_window() {
+        Ok(info) => {
+            debug!(
+                "Active window: app='{}', title='{}', process='{}'",
+                info.app_name, info.window_title, info.process_name
+            );
+            info
+        }
+        Err(e) => {
+            warn!("Failed to get active window: {}", e);
+            return None;
+        }
+    };
+
+    let mut rules = settings.app_rules.clone();
+    rules.sort_by(|a, b| b.priority.cmp(&a.priority));
+
+    for rule in rules.iter().filter(|r| r.enabled) {
+        if rule_matches(&window_info, rule) {
+            debug!("Matched app rule: '{}' with prompt template", rule.name);
+            let _ = app.emit(
+                "app-context-matched",
+                AppContextEvent {
+                    app_name: window_info.app_name.clone(),
+                    rule_name: rule.name.clone(),
+                },
+            );
+            return Some(rule.prompt_template.clone());
+        }
+    }
+
+    debug!("No matching app rule found");
+    None
+}
+
 fn apply_llm_processing(app: &AppHandle, text: String) -> Result<String> {
     let state = app.state::<AudioState>();
     let recording_mode = state.get_recording_mode();
@@ -148,13 +191,13 @@ fn apply_llm_processing(app: &AppHandle, text: String) -> Result<String> {
     match recording_mode {
         RecordingMode::Command => {
             debug!("Processing audio in Command mode");
-            let mut prompt = text.clone();
+            let mut user_text = text.clone();
 
             match crate::clipboard::get_selected_text(app) {
                 Ok(selected_text) => {
                     if !selected_text.trim().is_empty() {
                         debug!("Captured selected text for command mode successfully");
-                        prompt = format!("{}\n\n{}", text, selected_text);
+                        user_text = format!("{}\n\nContext (selected text):\n{}", text, selected_text);
                     } else {
                         warn!("Selected text was empty in command mode");
                     }
@@ -164,7 +207,10 @@ fn apply_llm_processing(app: &AppHandle, text: String) -> Result<String> {
                 }
             }
 
-            match rt.block_on(llm::process_command_with_llm(app, prompt)) {
+            let system_prompt = get_command_mode_prompt(app);
+            debug!("Using system prompt: {:?}", system_prompt);
+
+            match rt.block_on(llm::process_command_with_llm(app, user_text, system_prompt)) {
                 Ok(response) => {
                     debug!("Command processed with LLM: {}", response);
                     Ok(response)
