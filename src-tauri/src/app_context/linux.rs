@@ -60,6 +60,7 @@ pub fn get_active_window() -> Result<ActiveWindowInfo, String> {
         process_path,
         window_class,
         browser_url: None,
+        detected_app: None,
     };
 
     info.extract_browser_url();

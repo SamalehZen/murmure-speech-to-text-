@@ -51,6 +51,8 @@ pub enum AppMatchType {
     ProcessPathContains,
     #[serde(alias = "window_class_equals")]
     WindowClassEquals,
+    #[serde(alias = "detected_app_equals")]
+    DetectedAppEquals,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -67,6 +67,12 @@ pub fn rule_matches(window: &ActiveWindowInfo, rule: &AppPromptRule) -> bool {
         AppMatchType::WindowClassEquals => {
             window.window_class.to_lowercase() == rule.match_pattern.to_lowercase()
         }
+
+        AppMatchType::DetectedAppEquals => window
+            .detected_app
+            .as_ref()
+            .map(|app| app.to_lowercase() == rule.match_pattern.to_lowercase())
+            .unwrap_or(false),
     }
 }
 
@@ -91,6 +97,7 @@ fn get_or_compile_regex(pattern: &str) -> Option<Regex> {
 
 pub fn get_rule_specificity(rule: &AppPromptRule, window: &ActiveWindowInfo) -> i32 {
     let base_score = match rule.match_type {
+        AppMatchType::DetectedAppEquals => 1100,
         AppMatchType::ProcessNameEquals => 1000,
         AppMatchType::WindowClassEquals => 900,
         AppMatchType::BrowserUrlContains => 850,
@@ -121,6 +128,11 @@ fn is_exact_match(window: &ActiveWindowInfo, rule: &AppPromptRule) -> bool {
             .browser_url
             .as_ref()
             .map(|url| url.to_lowercase() == pattern_lower)
+            .unwrap_or(false),
+        AppMatchType::DetectedAppEquals => window
+            .detected_app
+            .as_ref()
+            .map(|app| app.to_lowercase() == pattern_lower)
             .unwrap_or(false),
         _ => false,
     }
@@ -164,6 +176,7 @@ mod tests {
             process_path: "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe".to_string(),
             window_class: "Chrome_WidgetWin_1".to_string(),
             browser_url: Some("chatgpt.com".to_string()),
+            detected_app: None,
         }
     }
 
