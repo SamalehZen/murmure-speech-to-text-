@@ -1,4 +1,5 @@
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
+use log::{debug, error};
 use reqwest::Client;
 
 use super::gcloud_auth::GoogleCloudAuth;
@@ -19,6 +20,8 @@ impl Chirp3Client {
         audio_samples: Vec<f32>,
         sample_rate: u32,
     ) -> Result<String, String> {
+        debug!("Starting Chirp 3 transcription with {} samples", audio_samples.len());
+        
         let access_token = self.auth.get_access_token().await?;
         let project_id = self.auth.project_id();
 
@@ -29,6 +32,7 @@ impl Chirp3Client {
             "https://{}-speech.googleapis.com/v2/projects/{}/locations/{}/recognizers/_:recognize",
             self.location, project_id, self.location
         );
+        debug!("Chirp 3 API URL: {}", url);
 
         let request_body = serde_json::json!({
             "config": {
@@ -37,8 +41,8 @@ impl Chirp3Client {
                     "sampleRateHertz": sample_rate,
                     "audioChannelCount": 1
                 },
-                "model": "chirp_2",
-                "languageCodes": ["fr-FR", "en-US"],
+                "model": "chirp_3",
+                "languageCodes": ["auto"],
                 "features": {
                     "enableAutomaticPunctuation": true
                 }
@@ -54,17 +58,27 @@ impl Chirp3Client {
             .json(&request_body)
             .send()
             .await
-            .map_err(|e| format!("Chirp 3 request failed: {}", e))?;
+            .map_err(|e| {
+                error!("Chirp 3 request failed: {}", e);
+                format!("Chirp 3 request failed: {}", e)
+            })?;
 
-        if !response.status().is_success() {
+        let status = response.status();
+        if !status.is_success() {
             let error_text = response.text().await.unwrap_or_default();
-            return Err(format!("Chirp 3 API error: {}", error_text));
+            error!("Chirp 3 API error ({}): {}", status, error_text);
+            return Err(format!("Chirp 3 API error ({}): {}", status, error_text));
         }
 
         let result: serde_json::Value = response
             .json()
             .await
-            .map_err(|e| format!("Failed to parse response: {}", e))?;
+            .map_err(|e| {
+                error!("Failed to parse Chirp 3 response: {}", e);
+                format!("Failed to parse response: {}", e)
+            })?;
+
+        debug!("Chirp 3 response: {:?}", result);
 
         let transcript = result
             .get("results")
@@ -84,6 +98,7 @@ impl Chirp3Client {
             })
             .unwrap_or_default();
 
+        debug!("Chirp 3 transcript: {}", transcript);
         Ok(transcript)
     }
 }

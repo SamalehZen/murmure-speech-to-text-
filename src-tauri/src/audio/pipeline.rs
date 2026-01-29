@@ -136,7 +136,7 @@ async fn transcribe_with_chirp3_parallel(app: &AppHandle, file_path: &Path) -> R
         .ok_or_else(|| anyhow::anyhow!("Google Cloud credentials file not configured"))?;
 
     let transcription_task = tokio::spawn(async move {
-        let chirp3 = Chirp3Client::new(&credentials_path, "us-central1".to_string())?;
+        let chirp3 = Chirp3Client::new(&credentials_path, "us".to_string())?;
         chirp3.transcribe(samples, sample_rate).await
     });
 
