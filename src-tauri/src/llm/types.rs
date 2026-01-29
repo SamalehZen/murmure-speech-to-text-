@@ -45,6 +45,12 @@ pub enum AppMatchType {
     WindowTitleContains,
     ProcessNameEquals,
     WindowTitleRegex,
+    #[serde(alias = "browser_url_contains")]
+    BrowserUrlContains,
+    #[serde(alias = "process_path_contains")]
+    ProcessPathContains,
+    #[serde(alias = "window_class_equals")]
+    WindowClassEquals,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

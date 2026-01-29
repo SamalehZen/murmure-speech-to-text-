@@ -1,15 +1,14 @@
+use crate::app_context;
 use crate::audio::types::{AudioState, RecordingMode};
 use crate::dictionary::{fix_transcription_with_dictionary, get_cc_rules_path, Dictionary};
 use crate::formatting_rules;
 use crate::history;
 use crate::llm::helpers::load_llm_connect_settings;
 use crate::llm::providers;
-use crate::llm::types::{AppContextEvent, AppMatchType, AppPromptRule, LLMConnectSettings};
+use crate::llm::types::{AppContextEvent, LLMConnectSettings};
 use crate::stats;
-use crate::app_context;
 use anyhow::{Context, Result};
 use log::{debug, error, info, warn};
-use regex::Regex;
 use std::path::Path;
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -45,26 +44,10 @@ pub async fn process_recording(app: &AppHandle, file_path: &Path) -> Result<Stri
     Ok(final_text)
 }
 
-fn rule_matches(window: &app_context::ActiveWindowInfo, rule: &AppPromptRule) -> bool {
-    match rule.match_type {
-        AppMatchType::AppNameContains => window
-            .app_name
-            .to_lowercase()
-            .contains(&rule.match_pattern.to_lowercase()),
-        AppMatchType::WindowTitleContains => window
-            .window_title
-            .to_lowercase()
-            .contains(&rule.match_pattern.to_lowercase()),
-        AppMatchType::ProcessNameEquals => {
-            window.process_name.to_lowercase() == rule.match_pattern.to_lowercase()
-        }
-        AppMatchType::WindowTitleRegex => Regex::new(&rule.match_pattern)
-            .map(|r| r.is_match(&window.window_title))
-            .unwrap_or(false),
-    }
-}
-
-fn get_effective_prompt(app: &AppHandle, settings: &LLMConnectSettings) -> Result<Option<String>, String> {
+fn get_effective_prompt(
+    app: &AppHandle,
+    settings: &LLMConnectSettings,
+) -> Result<Option<String>, String> {
     if !settings.app_detection_enabled {
         return Ok(None);
     }
@@ -79,25 +62,20 @@ fn get_effective_prompt(app: &AppHandle, settings: &LLMConnectSettings) -> Resul
         return Ok(None);
     }
 
-    let window_info = match app_context::get_active_window() {
+    let window_info = match app_context::get_cached_active_window() {
         Ok(info) => info,
         Err(_) => return Ok(Some(default_prompt)),
     };
 
-    let mut rules = settings.app_rules.clone();
-    rules.sort_by(|a, b| b.priority.cmp(&a.priority));
-
-    for rule in rules.iter().filter(|r| r.enabled) {
-        if rule_matches(&window_info, rule) {
-            let _ = app.emit(
-                "app-context-matched",
-                AppContextEvent {
-                    app_name: window_info.app_name.clone(),
-                    rule_name: rule.name.clone(),
-                },
-            );
-            return Ok(Some(rule.prompt_template.clone()));
-        }
+    if let Some(rule) = app_context::find_best_matching_rule(&settings.app_rules, &window_info) {
+        let _ = app.emit(
+            "app-context-matched",
+            AppContextEvent {
+                app_name: window_info.app_name.clone(),
+                rule_name: rule.name.clone(),
+            },
+        );
+        return Ok(Some(rule.prompt_template.clone()));
     }
 
     Ok(Some(default_prompt))
@@ -114,14 +92,14 @@ fn get_command_mode_prompt(app: &AppHandle) -> Option<(String, String)> {
     let window_info = match crate::audio::audio::take_captured_window_info() {
         Some(info) => {
             info!(
-                "Command mode - Using captured window: app='{}', title='{}', process='{}'",
-                info.app_name, info.window_title, info.process_name
+                "Command mode - Using captured window: app='{}', title='{}', process='{}', url={:?}",
+                info.app_name, info.window_title, info.process_name, info.browser_url
             );
             info
         }
         None => {
             warn!("Command mode - No captured window info, trying current window");
-            match app_context::get_active_window() {
+            match app_context::get_cached_active_window() {
                 Ok(info) => info,
                 Err(e) => {
                     warn!("Failed to get active window: {}", e);
@@ -131,33 +109,29 @@ fn get_command_mode_prompt(app: &AppHandle) -> Option<(String, String)> {
         }
     };
 
-    let mut rules = settings.app_rules.clone();
-    rules.sort_by(|a, b| b.priority.cmp(&a.priority));
-
-    for rule in rules.iter().filter(|r| r.enabled) {
-        if rule_matches(&window_info, rule) {
-            info!("Command mode - Matched app rule: '{}'", rule.name);
-            let _ = app.emit(
-                "app-context-matched",
-                AppContextEvent {
-                    app_name: window_info.app_name.clone(),
-                    rule_name: rule.name.clone(),
-                },
-            );
-            return Some((rule.name.clone(), rule.prompt_template.clone()));
-        }
+    if let Some(rule) = app_context::find_best_matching_rule(&settings.app_rules, &window_info) {
+        info!("Command mode - Matched app rule: '{}'", rule.name);
+        let _ = app.emit(
+            "app-context-matched",
+            AppContextEvent {
+                app_name: window_info.app_name.clone(),
+                rule_name: rule.name.clone(),
+            },
+        );
+        return Some((rule.name.clone(), rule.prompt_template.clone()));
     }
 
-    debug!("Command mode - No matching app rule found for window: app='{}', title='{}'", 
-           window_info.app_name, window_info.window_title);
+    debug!(
+        "Command mode - No matching app rule found for window: app='{}', title='{}', url={:?}",
+        window_info.app_name, window_info.window_title, window_info.browser_url
+    );
     None
 }
 
 async fn transcribe_and_reformat(app: &AppHandle, audio_path: &Path) -> Result<String> {
     let _ = app.emit("llm-processing-start", ());
 
-    let audio_bytes = std::fs::read(audio_path)
-        .context("Failed to read audio file")?;
+    let audio_bytes = std::fs::read(audio_path).context("Failed to read audio file")?;
 
     let settings = load_llm_connect_settings(app);
     let google_config = settings
@@ -190,8 +164,11 @@ async fn transcribe_and_reformat(app: &AppHandle, audio_path: &Path) -> Result<S
 
     let combined_prompt = match get_command_mode_prompt(app) {
         Some((rule_name, prompt_template)) => {
-            info!("Command mode - Using app rule '{}' for transcription + reformulation in ONE API call", rule_name);
-            
+            info!(
+                "Command mode - Using app rule '{}' for transcription + reformulation in ONE API call",
+                rule_name
+            );
+
             let context_section = match &selected_text {
                 Some(text) => format!("\n\n<selected_text>\n{}\n</selected_text>", text),
                 None => String::new(),
@@ -199,14 +176,17 @@ async fn transcribe_and_reformat(app: &AppHandle, audio_path: &Path) -> Result<S
 
             let clean_template = prompt_template
                 .replace("{{TRANSCRIPT}}", "[THE TRANSCRIBED AUDIO]")
-                .replace("<input>[THE TRANSCRIBED AUDIO]</input>", "[Apply instructions to the transcribed audio]");
+                .replace(
+                    "<input>[THE TRANSCRIBED AUDIO]</input>",
+                    "[Apply instructions to the transcribed audio]",
+                );
 
             let full_prompt = format!(
                 "You will receive an audio file. Your task:\n1. Transcribe the audio accurately\n2. Apply the following reformulation instructions to the transcription\n3. Return ONLY the final reformulated text, nothing else\n\n<reformulation_instructions>\n{}\n</reformulation_instructions>{}",
                 clean_template,
                 context_section
             );
-            
+
             Some(full_prompt)
         }
         None => {
@@ -215,7 +195,8 @@ async fn transcribe_and_reformat(app: &AppHandle, audio_path: &Path) -> Result<S
         }
     };
 
-    let result = providers::google::transcribe_audio(&google_config, audio_bytes, combined_prompt).await;
+    let result =
+        providers::google::transcribe_audio(&google_config, audio_bytes, combined_prompt).await;
 
     let _ = app.emit("llm-processing-end", ());
 
@@ -225,8 +206,7 @@ async fn transcribe_and_reformat(app: &AppHandle, audio_path: &Path) -> Result<S
 pub async fn transcribe_audio(app: &AppHandle, audio_path: &Path) -> Result<String> {
     let _ = app.emit("llm-processing-start", ());
 
-    let audio_bytes = std::fs::read(audio_path)
-        .context("Failed to read audio file")?;
+    let audio_bytes = std::fs::read(audio_path).context("Failed to read audio file")?;
 
     let settings = load_llm_connect_settings(app);
     let google_config = settings
@@ -245,7 +225,8 @@ pub async fn transcribe_audio(app: &AppHandle, audio_path: &Path) -> Result<Stri
     let effective_prompt = get_effective_prompt(app, &settings)
         .map_err(|e| anyhow::anyhow!("Failed to get effective prompt: {}", e))?;
 
-    let result = providers::google::transcribe_audio(&google_config, audio_bytes, effective_prompt).await;
+    let result =
+        providers::google::transcribe_audio(&google_config, audio_bytes, effective_prompt).await;
 
     let _ = app.emit("llm-processing-end", ());
 

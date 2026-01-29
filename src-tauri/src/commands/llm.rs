@@ -75,6 +75,7 @@ pub fn save_provider_config(
 
 #[command]
 pub fn get_current_active_window() -> Result<app_context::ActiveWindowInfo, String> {
+    app_context::invalidate_window_cache();
     app_context::get_active_window()
 }
 
@@ -98,24 +99,19 @@ pub fn toggle_app_detection(app: AppHandle, enabled: bool) -> Result<(), String>
 
 #[command]
 pub fn test_app_rule(rule: AppPromptRule) -> Result<bool, String> {
+    app_context::invalidate_window_cache();
     let window_info = app_context::get_active_window()?;
+    Ok(app_context::rule_matches(&window_info, &rule))
+}
+
+#[command]
+pub fn find_matching_rule(app: AppHandle) -> Result<Option<String>, String> {
+    app_context::invalidate_window_cache();
+    let window_info = app_context::get_active_window()?;
+    let settings = llm::load_llm_connect_settings(&app);
     
-    let matches = match rule.match_type {
-        llm::AppMatchType::AppNameContains => window_info
-            .app_name
-            .to_lowercase()
-            .contains(&rule.match_pattern.to_lowercase()),
-        llm::AppMatchType::WindowTitleContains => window_info
-            .window_title
-            .to_lowercase()
-            .contains(&rule.match_pattern.to_lowercase()),
-        llm::AppMatchType::ProcessNameEquals => {
-            window_info.process_name.to_lowercase() == rule.match_pattern.to_lowercase()
-        }
-        llm::AppMatchType::WindowTitleRegex => regex::Regex::new(&rule.match_pattern)
-            .map(|r| r.is_match(&window_info.window_title))
-            .unwrap_or(false),
-    };
-    
-    Ok(matches)
+    match app_context::find_best_matching_rule(&settings.app_rules, &window_info) {
+        Some(rule) => Ok(Some(rule.name.clone())),
+        None => Ok(None),
+    }
 }

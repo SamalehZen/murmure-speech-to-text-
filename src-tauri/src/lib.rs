@@ -196,6 +196,7 @@ pub fn run() {
             save_app_rules,
             toggle_app_detection,
             test_app_rule,
+            find_matching_rule,
             get_sound_enabled,
             set_sound_enabled,
             get_record_mode,
