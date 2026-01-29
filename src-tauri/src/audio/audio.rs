@@ -4,9 +4,31 @@ use crate::audio::recorder::AudioRecorder;
 use crate::audio::types::{AudioState, RecordingMode};
 use crate::clipboard;
 use crate::overlay::overlay;
+use crate::app_context::{self, ActiveWindowInfo};
 use anyhow::Result;
 use log::{debug, error, info, warn};
+use once_cell::sync::Lazy;
+use parking_lot::Mutex;
 use tauri::{AppHandle, Emitter, Manager};
+
+static CAPTURED_WINDOW_INFO: Lazy<Mutex<Option<ActiveWindowInfo>>> = Lazy::new(|| Mutex::new(None));
+
+pub fn capture_active_window_for_command() {
+    match app_context::get_active_window() {
+        Ok(info) => {
+            info!("Captured active window at record start: app='{}', title='{}'", info.app_name, info.window_title);
+            *CAPTURED_WINDOW_INFO.lock() = Some(info);
+        }
+        Err(e) => {
+            warn!("Failed to capture active window at record start: {}", e);
+            *CAPTURED_WINDOW_INFO.lock() = None;
+        }
+    }
+}
+
+pub fn take_captured_window_info() -> Option<ActiveWindowInfo> {
+    CAPTURED_WINDOW_INFO.lock().take()
+}
 
 pub fn record_audio(app: &AppHandle) {
     let state = app.state::<AudioState>();
@@ -22,6 +44,7 @@ pub fn record_audio_with_llm(app: &AppHandle) {
 }
 
 pub fn record_audio_with_command(app: &AppHandle) {
+    capture_active_window_for_command();
     let state = app.state::<AudioState>();
     state.set_recording_mode(RecordingMode::Command);
     crate::llm::warmup_ollama_model_background(app);

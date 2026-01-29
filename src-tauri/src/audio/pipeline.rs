@@ -111,17 +111,23 @@ fn get_command_mode_prompt(app: &AppHandle) -> Option<(String, String)> {
         return None;
     }
 
-    let window_info = match app_context::get_active_window() {
-        Ok(info) => {
+    let window_info = match crate::audio::audio::take_captured_window_info() {
+        Some(info) => {
             info!(
-                "Command mode - Active window detected: app='{}', title='{}', process='{}'",
+                "Command mode - Using captured window: app='{}', title='{}', process='{}'",
                 info.app_name, info.window_title, info.process_name
             );
             info
         }
-        Err(e) => {
-            warn!("Failed to get active window for command mode: {}", e);
-            return None;
+        None => {
+            warn!("Command mode - No captured window info, trying current window");
+            match app_context::get_active_window() {
+                Ok(info) => info,
+                Err(e) => {
+                    warn!("Failed to get active window: {}", e);
+                    return None;
+                }
+            }
         }
     };
 
@@ -142,7 +148,8 @@ fn get_command_mode_prompt(app: &AppHandle) -> Option<(String, String)> {
         }
     }
 
-    debug!("Command mode - No matching app rule found");
+    debug!("Command mode - No matching app rule found for window: app='{}', title='{}'", 
+           window_info.app_name, window_info.window_title);
     None
 }
 
