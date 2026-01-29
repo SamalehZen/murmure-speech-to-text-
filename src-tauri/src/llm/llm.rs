@@ -1,79 +1,12 @@
 use crate::llm::helpers::load_llm_connect_settings;
-use crate::llm::providers;
 use crate::llm::types::{
-    LLMProvider, OllamaGenerateRequest, OllamaModel, OllamaOptions, OllamaPullRequest,
-    OllamaPullResponse, OllamaTagsResponse, ProviderConfig,
+    OllamaGenerateRequest, OllamaModel, OllamaOptions, OllamaPullRequest,
+    OllamaPullResponse, OllamaTagsResponse, ProviderConfig, LLMProvider,
 };
+use crate::llm::providers;
 use log::warn;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
-
-fn get_provider_key(provider: &LLMProvider) -> String {
-    match provider {
-        LLMProvider::Ollama => "ollama".to_string(),
-        LLMProvider::OpenAI => "openai".to_string(),
-        LLMProvider::Anthropic => "anthropic".to_string(),
-        LLMProvider::Google => "google".to_string(),
-        LLMProvider::OpenRouter => "openrouter".to_string(),
-    }
-}
-
-async fn generate_with_provider(
-    config: &ProviderConfig,
-    prompt: &str,
-    temperature: f32,
-) -> Result<String, String> {
-    match config.provider {
-        LLMProvider::Ollama => providers::ollama::generate(config, prompt, temperature).await,
-        LLMProvider::OpenAI => providers::openai::generate(config, prompt, temperature).await,
-        LLMProvider::Anthropic => providers::anthropic::generate(config, prompt, temperature).await,
-        LLMProvider::Google => providers::google::generate(config, prompt, temperature).await,
-        LLMProvider::OpenRouter => providers::openrouter::generate(config, prompt, temperature).await,
-    }
-}
-
-pub async fn process_command_with_llm(app: &AppHandle, prompt: String) -> Result<String, String> {
-    let settings = load_llm_connect_settings(app);
-    let provider_key = get_provider_key(&settings.active_provider);
-
-    let provider_config = if settings.active_provider == LLMProvider::Ollama {
-        ProviderConfig {
-            provider: LLMProvider::Ollama,
-            api_key: None,
-            base_url: settings.url.clone(),
-            model: settings
-                .modes
-                .get(settings.active_mode_index)
-                .map(|m| m.model.clone())
-                .unwrap_or_default(),
-            available_models: Vec::new(),
-        }
-    } else {
-        settings
-            .providers
-            .get(&provider_key)
-            .cloned()
-            .ok_or("Provider not configured")?
-    };
-
-    if provider_config.model.is_empty() {
-        return Err("No model selected".to_string());
-    }
-
-    let _ = app.emit("llm-processing-start", ());
-
-    let result = generate_with_provider(&provider_config, &prompt, 0.0).await;
-
-    let _ = app.emit("llm-processing-end", ());
-
-    match result {
-        Ok(response) => Ok(response),
-        Err(e) => {
-            warn!("LLM command processing failed: {}", e);
-            Err(e)
-        }
-    }
-}
 
 pub async fn test_ollama_connection(url: String) -> Result<bool, String> {
     let client = reqwest::Client::new();

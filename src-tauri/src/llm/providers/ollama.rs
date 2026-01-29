@@ -2,6 +2,7 @@ use crate::llm::types::{
     OllamaGenerateRequest, OllamaGenerateResponse, OllamaOptions, OllamaTagsResponse, ProviderConfig,
 };
 
+#[allow(dead_code)]
 pub async fn generate(config: &ProviderConfig, prompt: &str, temperature: f32) -> Result<String, String> {
     let client = reqwest::Client::new();
     let url = format!("{}/generate", config.base_url.trim_end_matches('/'));

@@ -6,34 +6,39 @@ use crate::llm::helpers::load_llm_connect_settings;
 use crate::llm::providers;
 use crate::llm::types::{AppContextEvent, AppMatchType, AppPromptRule, LLMConnectSettings};
 use crate::stats;
-use crate::{app_context, llm};
+use crate::app_context;
 use anyhow::{Context, Result};
-use log::{debug, error, warn};
+use log::{debug, error, info, warn};
 use regex::Regex;
 use std::path::Path;
 use tauri::{AppHandle, Emitter, Manager};
 
 pub async fn process_recording(app: &AppHandle, file_path: &Path) -> Result<String> {
-    let raw_text = transcribe_audio(app, file_path).await?;
-    debug!("Raw transcription: {}", raw_text);
+    let state = app.state::<AudioState>();
+    let recording_mode = state.get_recording_mode();
+
+    let raw_text = if recording_mode == RecordingMode::Command {
+        debug!("Command mode detected - using single API call for transcription + reformulation");
+        transcribe_and_reformat(app, file_path).await?
+    } else {
+        transcribe_audio(app, file_path).await?
+    };
+
+    debug!("Transcription result: {}", raw_text);
 
     if raw_text.trim().is_empty() {
         debug!("Transcription is empty, skipping further processing.");
         return Ok(raw_text);
     }
 
-    let text = apply_dictionary_and_rules(app, raw_text)?;
-    debug!("Transcription fixed with dictionary: {}", text);
-
-    let state = app.state::<AudioState>();
-    let llm_text = if state.get_recording_mode() == RecordingMode::Command {
-        apply_llm_processing(app, text)?
+    let text = if recording_mode == RecordingMode::Command {
+        raw_text
     } else {
-        text
+        apply_dictionary_and_rules(app, raw_text)?
     };
 
-    let final_text = apply_formatting_rules(app, llm_text);
-    debug!("Transcription with formatting rules: {}", final_text);
+    let final_text = apply_formatting_rules(app, text);
+    debug!("Final text with formatting rules: {}", final_text);
 
     save_stats_and_history(app, file_path, &final_text)?;
 
@@ -98,6 +103,125 @@ fn get_effective_prompt(app: &AppHandle, settings: &LLMConnectSettings) -> Resul
     Ok(Some(default_prompt))
 }
 
+fn get_command_mode_prompt(app: &AppHandle) -> Option<(String, String)> {
+    let settings = load_llm_connect_settings(app);
+
+    if !settings.app_detection_enabled {
+        debug!("App detection is disabled for command mode");
+        return None;
+    }
+
+    let window_info = match crate::audio::audio::take_captured_window_info() {
+        Some(info) => {
+            info!(
+                "Command mode - Using captured window: app='{}', title='{}', process='{}'",
+                info.app_name, info.window_title, info.process_name
+            );
+            info
+        }
+        None => {
+            warn!("Command mode - No captured window info, trying current window");
+            match app_context::get_active_window() {
+                Ok(info) => info,
+                Err(e) => {
+                    warn!("Failed to get active window: {}", e);
+                    return None;
+                }
+            }
+        }
+    };
+
+    let mut rules = settings.app_rules.clone();
+    rules.sort_by(|a, b| b.priority.cmp(&a.priority));
+
+    for rule in rules.iter().filter(|r| r.enabled) {
+        if rule_matches(&window_info, rule) {
+            info!("Command mode - Matched app rule: '{}'", rule.name);
+            let _ = app.emit(
+                "app-context-matched",
+                AppContextEvent {
+                    app_name: window_info.app_name.clone(),
+                    rule_name: rule.name.clone(),
+                },
+            );
+            return Some((rule.name.clone(), rule.prompt_template.clone()));
+        }
+    }
+
+    debug!("Command mode - No matching app rule found for window: app='{}', title='{}'", 
+           window_info.app_name, window_info.window_title);
+    None
+}
+
+async fn transcribe_and_reformat(app: &AppHandle, audio_path: &Path) -> Result<String> {
+    let _ = app.emit("llm-processing-start", ());
+
+    let audio_bytes = std::fs::read(audio_path)
+        .context("Failed to read audio file")?;
+
+    let settings = load_llm_connect_settings(app);
+    let google_config = settings
+        .providers
+        .get("google")
+        .cloned()
+        .ok_or_else(|| anyhow::anyhow!("Google provider not configured"))?;
+
+    if google_config.api_key.is_none() {
+        let _ = app.emit("llm-processing-end", ());
+        return Err(anyhow::anyhow!(
+            "Google API key not configured. Go to Settings > LLM Connect to configure."
+        ));
+    }
+
+    let selected_text = match crate::clipboard::get_selected_text(app) {
+        Ok(text) if !text.trim().is_empty() => {
+            debug!("Command mode - captured selected text for context");
+            Some(text)
+        }
+        Ok(_) => {
+            debug!("Command mode - no selected text");
+            None
+        }
+        Err(e) => {
+            warn!("Command mode - failed to get selected text: {}", e);
+            None
+        }
+    };
+
+    let combined_prompt = match get_command_mode_prompt(app) {
+        Some((rule_name, prompt_template)) => {
+            info!("Command mode - Using app rule '{}' for transcription + reformulation in ONE API call", rule_name);
+            
+            let context_section = match &selected_text {
+                Some(text) => format!("\n\n<selected_text>\n{}\n</selected_text>", text),
+                None => String::new(),
+            };
+
+            let clean_template = prompt_template
+                .replace("{{TRANSCRIPT}}", "[THE TRANSCRIBED AUDIO]")
+                .replace("<input>[THE TRANSCRIBED AUDIO]</input>", "[Apply instructions to the transcribed audio]");
+
+            let full_prompt = format!(
+                "You will receive an audio file. Your task:\n1. Transcribe the audio accurately\n2. Apply the following reformulation instructions to the transcription\n3. Return ONLY the final reformulated text, nothing else\n\n<reformulation_instructions>\n{}\n</reformulation_instructions>{}",
+                clean_template,
+                context_section
+            );
+            
+            Some(full_prompt)
+        }
+        None => {
+            info!("Command mode - No app rule matched, using standard transcription");
+            None
+        }
+    };
+
+    let result = providers::google::transcribe_audio(&google_config, audio_bytes, combined_prompt).await;
+
+    let _ = app.emit("llm-processing-end", ());
+
+    result.map_err(|e| anyhow::anyhow!("{}", e))
+}
+
 pub async fn transcribe_audio(app: &AppHandle, audio_path: &Path) -> Result<String> {
     let _ = app.emit("llm-processing-start", ());
 
@@ -137,52 +261,6 @@ fn apply_dictionary_and_rules(app: &AppHandle, text: String) -> Result<String> {
         dictionary,
         cc_rules_path,
     ))
-}
-
-fn apply_llm_processing(app: &AppHandle, text: String) -> Result<String> {
-    let state = app.state::<AudioState>();
-    let recording_mode = state.get_recording_mode();
-
-    let rt = tokio::runtime::Runtime::new().context("Failed to create tokio runtime")?;
-
-    match recording_mode {
-        RecordingMode::Command => {
-            debug!("Processing audio in Command mode");
-            let mut prompt = text.clone();
-
-            match crate::clipboard::get_selected_text(app) {
-                Ok(selected_text) => {
-                    if !selected_text.trim().is_empty() {
-                        debug!("Captured selected text for command mode successfully");
-                        prompt = format!("{}\n\n{}", text, selected_text);
-                    } else {
-                        warn!("Selected text was empty in command mode");
-                    }
-                }
-                Err(e) => {
-                    error!("Failed to capture selected text in command mode: {}", e);
-                }
-            }
-
-            match rt.block_on(llm::process_command_with_llm(app, prompt)) {
-                Ok(response) => {
-                    debug!("Command processed with LLM: {}", response);
-                    Ok(response)
-                }
-                Err(e) => {
-                    warn!(
-                        "Command LLM processing failed: {}. Using original transcription.",
-                        e
-                    );
-                    let _ = app.emit("llm-error", e.to_string());
-                    Ok(text)
-                }
-            }
-        }
-        RecordingMode::Llm | RecordingMode::Standard => {
-            Ok(text)
-        }
-    }
 }
 
 fn apply_formatting_rules(app: &AppHandle, text: String) -> String {
