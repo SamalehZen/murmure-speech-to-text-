@@ -186,13 +186,17 @@ async fn transcribe_and_reformat(app: &AppHandle, audio_path: &Path) -> Result<S
             info!("Command mode - Using app rule '{}' for transcription + reformulation in ONE API call", rule_name);
             
             let context_section = match &selected_text {
-                Some(text) => format!("\n\n<context>Text sélectionné par l'utilisateur:\n{}</context>", text),
+                Some(text) => format!("\n\n<selected_text>\n{}\n</selected_text>", text),
                 None => String::new(),
             };
 
+            let clean_template = prompt_template
+                .replace("{{TRANSCRIPT}}", "[THE TRANSCRIBED AUDIO]")
+                .replace("<input>[THE TRANSCRIBED AUDIO]</input>", "[Apply instructions to the transcribed audio]");
+
             let full_prompt = format!(
-                "{}\n\nIMPORTANT: Transcris l'audio ci-dessus ET applique immédiatement les instructions de reformulation. Retourne UNIQUEMENT le texte final reformulé, rien d'autre.{}",
-                prompt_template.replace("{{TRANSCRIPT}}", "[AUDIO À TRANSCRIRE]"),
+                "You will receive an audio file. Your task:\n1. Transcribe the audio accurately\n2. Apply the following reformulation instructions to the transcription\n3. Return ONLY the final reformulated text, nothing else\n\n<reformulation_instructions>\n{}\n</reformulation_instructions>{}",
+                clean_template,
                 context_section
             );
             
