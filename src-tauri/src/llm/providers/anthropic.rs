@@ -1,5 +1,6 @@
 use crate::llm::types::{AnthropicRequest, AnthropicResponse, OpenAIMessage, ProviderConfig};
 
+#[allow(dead_code)]
 pub async fn generate(config: &ProviderConfig, prompt: &str, temperature: f32) -> Result<String, String> {
     let api_key = config.api_key.as_ref().ok_or("API key not configured")?;
     let client = reqwest::Client::new();

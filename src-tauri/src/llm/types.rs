@@ -175,6 +175,7 @@ pub struct OllamaOptions {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+#[allow(dead_code)]
 pub struct OllamaGenerateResponse {
     pub response: String,
     pub done: bool,
@@ -211,6 +212,7 @@ pub struct OpenAIMessage {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct OpenAIChatRequest {
     pub model: String,
     pub messages: Vec<OpenAIMessage>,
@@ -221,11 +223,13 @@ pub struct OpenAIChatRequest {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct OpenAIChatResponse {
     pub choices: Vec<OpenAIChoice>,
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct OpenAIChoice {
     pub message: OpenAIMessage,
 }
@@ -250,16 +254,19 @@ pub struct AnthropicRequest {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct AnthropicResponse {
     pub content: Vec<AnthropicContent>,
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct AnthropicContent {
     pub text: String,
 }
 
 #[derive(Debug, Serialize)]
+#[allow(dead_code)]
 pub struct GoogleGenerateRequest {
     pub contents: Vec<GoogleContent>,
     #[serde(rename = "generationConfig", skip_serializing_if = "Option::is_none")]
@@ -267,11 +274,13 @@ pub struct GoogleGenerateRequest {
 }
 
 #[derive(Debug, Serialize)]
+#[allow(dead_code)]
 pub struct GoogleContent {
     pub parts: Vec<GooglePart>,
 }
 
 #[derive(Debug, Serialize)]
+#[allow(dead_code)]
 pub struct GooglePart {
     pub text: String,
 }
