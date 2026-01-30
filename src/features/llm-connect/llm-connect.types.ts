@@ -55,6 +55,28 @@ export interface AppDictionarySettings {
     appDictionaryOverrides: Record<string, string>;
 }
 
+export interface TextTemplate {
+    id: string;
+    name: string;
+    triggerWords: string[];
+    content: string;
+    appPatterns: string[];
+    category: string;
+    language: string;
+}
+
+export interface TemplateSettings {
+    templates: TextTemplate[];
+    enabled: boolean;
+    triggerPrefix?: string;
+}
+
+export interface TemplateAppliedEvent {
+    templateId: string;
+    templateName: string;
+    detectedApp?: string;
+}
+
 export interface LLMConnectSettings {
     url: string;
     model: string;

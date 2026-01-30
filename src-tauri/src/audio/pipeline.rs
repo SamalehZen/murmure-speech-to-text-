@@ -8,7 +8,10 @@ use crate::formatting_rules;
 use crate::history;
 use crate::llm::helpers::load_llm_connect_settings;
 use crate::llm::providers;
-use crate::llm::types::{AppContextEvent, LLMConnectSettings, ToneAppliedEvent, ToneConfig};
+use crate::llm::templates::{detect_and_apply_template, load_template_settings};
+use crate::llm::types::{
+    AppContextEvent, LLMConnectSettings, TemplateAppliedEvent, ToneAppliedEvent, ToneConfig,
+};
 use crate::stats;
 use anyhow::{Context, Result};
 use log::{debug, error, info, warn};
@@ -33,6 +36,12 @@ pub async fn process_recording(app: &AppHandle, file_path: &Path) -> Result<Stri
         return Ok(raw_text);
     }
 
+    if let Some(template_content) = check_and_apply_template(app, &raw_text) {
+        debug!("Template applied, returning template content");
+        save_stats_and_history(app, file_path, &template_content)?;
+        return Ok(template_content);
+    }
+
     let text = if recording_mode == RecordingMode::Command {
         raw_text
     } else {
@@ -45,6 +54,51 @@ pub async fn process_recording(app: &AppHandle, file_path: &Path) -> Result<Stri
     save_stats_and_history(app, file_path, &final_text)?;
 
     Ok(final_text)
+}
+
+fn check_and_apply_template(app: &AppHandle, text: &str) -> Option<String> {
+    let template_settings = load_template_settings(app);
+
+    if !template_settings.enabled {
+        return None;
+    }
+
+    let templates = if template_settings.templates.is_empty() {
+        crate::llm::types::TextTemplate::default_templates()
+    } else {
+        template_settings.templates
+    };
+
+    let detected_app = get_detected_app_name(app);
+
+    match detect_and_apply_template(text, detected_app.as_deref(), &templates) {
+        Some(template) => {
+            info!(
+                "Template '{}' matched for app {:?}",
+                template.name, detected_app
+            );
+            let _ = app.emit(
+                "template-applied",
+                TemplateAppliedEvent {
+                    template_id: template.id.clone(),
+                    template_name: template.name.clone(),
+                    detected_app,
+                },
+            );
+            Some(template.content)
+        }
+        None => None,
+    }
+}
+
+fn get_detected_app_name(app: &AppHandle) -> Option<String> {
+    match crate::audio::audio::take_captured_window_info() {
+        Some(info) => info.detected_app,
+        None => match app_context::get_cached_active_window() {
+            Ok(info) => info.detected_app,
+            Err(_) => None,
+        },
+    }
 }
 
 fn get_effective_prompt(
