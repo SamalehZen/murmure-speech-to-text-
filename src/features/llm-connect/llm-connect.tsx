@@ -12,6 +12,7 @@ import { ProviderSelector } from './components/provider-selector';
 import { ApiKeyConfig } from './components/api-key-config';
 import { AppDetectionSettings } from './components/app-detection-settings';
 import { ToneSettings } from './components/tone-settings';
+import { AppDictionarySettingsComponent } from './components/app-dictionary-settings';
 import { SettingsUI } from '@/components/settings-ui';
 import { LLMProvider, ProviderConfig } from './llm-connect.types';
 
@@ -282,14 +283,21 @@ export const LLMConnect = () => {
                 />
 
                 {appDetectionEnabled && (
-                    <ToneSettings
-                        tones={tones}
-                        appToneOverrides={appToneOverrides}
-                        defaultToneId={defaultToneId}
-                        onTonesChange={saveTones}
-                        onSetAppToneOverride={setAppToneOverride}
-                        onSetDefaultTone={setDefaultTone}
-                    />
+                    <>
+                        <ToneSettings
+                            tones={tones}
+                            appToneOverrides={appToneOverrides}
+                            defaultToneId={defaultToneId}
+                            onTonesChange={saveTones}
+                            onSetAppToneOverride={setAppToneOverride}
+                            onSetDefaultTone={setDefaultTone}
+                        />
+
+                        <AppDictionarySettingsComponent
+                            currentDetectedApp={currentActiveWindow?.detected_app}
+                            onRefreshCurrentApp={refreshActiveWindow}
+                        />
+                    </>
                 )}
 
                 {activeProvider === 'ollama' && (
