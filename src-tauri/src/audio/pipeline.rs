@@ -319,12 +319,14 @@ fn record_for_style_learning(app: &AppHandle, text: &str) {
     profile.sample_count += 1;
     profile.last_updated = chrono::Utc::now().to_rfc3339();
 
+    let sample_count = profile.sample_count;
+
     if let Err(e) = save_style_learning_settings(app, &settings) {
         error!("Failed to save style learning data: {}", e);
     } else {
         debug!(
             "Style learning - Recorded sample #{} for app '{}'",
-            profile.sample_count, detected_app
+            sample_count, detected_app
         );
     }
 }
