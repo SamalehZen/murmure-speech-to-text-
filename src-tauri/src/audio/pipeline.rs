@@ -10,7 +10,7 @@ use crate::llm::helpers::load_llm_connect_settings;
 use crate::llm::providers;
 use crate::llm::templates::{detect_and_apply_template, load_template_settings};
 use crate::llm::types::{
-    AppContextEvent, TemplateAppliedEvent, ToneAppliedEvent, ToneConfig,
+    AppContextEvent, LLMConnectSettings, TemplateAppliedEvent, ToneAppliedEvent, ToneConfig,
 };
 use crate::stats;
 use crate::style_learning::{
