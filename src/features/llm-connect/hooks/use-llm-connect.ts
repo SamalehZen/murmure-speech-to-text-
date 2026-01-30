@@ -8,6 +8,7 @@ import {
     ProviderConfig,
     AppPromptRule,
     ActiveWindowInfo,
+    ToneConfig,
     PROVIDER_BASE_URLS,
 } from '../llm-connect.types';
 
@@ -29,6 +30,9 @@ export interface LLMConnectSettings {
     providers: Record<string, ProviderConfig>;
     app_detection_enabled: boolean;
     app_rules: AppPromptRule[];
+    tones: ToneConfig[];
+    app_tone_overrides: Record<string, string>;
+    default_tone_id?: string;
 }
 
 export interface OllamaModel {
@@ -96,6 +100,9 @@ export const useLLMConnect = () => {
         providers: defaultProviders,
         app_detection_enabled: false,
         app_rules: [],
+        tones: [],
+        app_tone_overrides: {},
+        default_tone_id: undefined,
     });
     const [models, setModels] = useState<OllamaModel[]>([]);
     const [connectionStatus, setConnectionStatus] =
@@ -362,6 +369,53 @@ export const useLLMConnect = () => {
         []
     );
 
+    const saveTones = useCallback(
+        async (tones: ToneConfig[]) => {
+            try {
+                await invoke('set_tones', { tones });
+                setSettings((prev) => ({ ...prev, tones }));
+            } catch (error) {
+                console.error('Failed to save tones:', error);
+                throw error;
+            }
+        },
+        []
+    );
+
+    const setAppToneOverride = useCallback(
+        async (appName: string, toneId: string) => {
+            try {
+                await invoke('set_app_tone_override', { appName, toneId });
+                setSettings((prev) => {
+                    const newOverrides = { ...prev.app_tone_overrides };
+                    if (toneId === '') {
+                        delete newOverrides[appName];
+                    } else {
+                        newOverrides[appName] = toneId;
+                    }
+                    return { ...prev, app_tone_overrides: newOverrides };
+                });
+            } catch (error) {
+                console.error('Failed to set app tone override:', error);
+                throw error;
+            }
+        },
+        []
+    );
+
+    const setDefaultTone = useCallback(
+        async (toneId: string | undefined) => {
+            try {
+                await invoke('set_default_tone', { toneId: toneId || null });
+                setSettings((prev) => ({ ...prev, default_tone_id: toneId }));
+            } catch (error) {
+                console.error('Failed to set default tone:', error);
+                throw error;
+            }
+        },
+        []
+    );
+
     return {
         settings,
         models,
@@ -388,5 +442,11 @@ export const useLLMConnect = () => {
         saveAppRules,
         refreshActiveWindow,
         testAppRule,
+        tones: settings.tones,
+        appToneOverrides: settings.app_tone_overrides,
+        defaultToneId: settings.default_tone_id,
+        saveTones,
+        setAppToneOverride,
+        setDefaultTone,
     };
 };

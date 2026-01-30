@@ -11,6 +11,7 @@ import { LLMAdvancedSettings } from './components/llm-advanced-settings';
 import { ProviderSelector } from './components/provider-selector';
 import { ApiKeyConfig } from './components/api-key-config';
 import { AppDetectionSettings } from './components/app-detection-settings';
+import { ToneSettings } from './components/tone-settings';
 import { SettingsUI } from '@/components/settings-ui';
 import { LLMProvider, ProviderConfig } from './llm-connect.types';
 
@@ -39,6 +40,12 @@ export const LLMConnect = () => {
         saveAppRules,
         refreshActiveWindow,
         testAppRule,
+        tones,
+        appToneOverrides,
+        defaultToneId,
+        saveTones,
+        setAppToneOverride,
+        setDefaultTone,
     } = useLLMConnect();
 
     const [showModelSelector, setShowModelSelector] = useState(false);
@@ -273,6 +280,17 @@ export const LLMConnect = () => {
                     onRefreshWindow={refreshActiveWindow}
                     onTestRule={testAppRule}
                 />
+
+                {appDetectionEnabled && (
+                    <ToneSettings
+                        tones={tones}
+                        appToneOverrides={appToneOverrides}
+                        defaultToneId={defaultToneId}
+                        onTonesChange={saveTones}
+                        onSetAppToneOverride={setAppToneOverride}
+                        onSetDefaultTone={setDefaultTone}
+                    />
+                )}
 
                 {activeProvider === 'ollama' && (
                     <>

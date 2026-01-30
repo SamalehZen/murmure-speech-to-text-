@@ -1,6 +1,124 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToneConfig {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub prompt_modifier: String,
+    pub icon: String,
+    pub apps: Vec<String>,
+}
+
+impl ToneConfig {
+    pub fn default_tones() -> Vec<ToneConfig> {
+        vec![
+            ToneConfig {
+                id: "professional".to_string(),
+                name: "Professionnel".to_string(),
+                description: "Emails et communications d'entreprise".to_string(),
+                icon: "📧".to_string(),
+                prompt_modifier: r#"Reformule de manière professionnelle et formelle:
+- Ajoute une salutation appropriée (Bonjour/Madame/Monsieur)
+- Utilise le vouvoiement
+- Structure en paragraphes clairs
+- Ajoute une formule de politesse (Cordialement, Bien à vous)
+- Corrige grammaire et orthographe"#.to_string(),
+                apps: vec![
+                    "Microsoft Outlook".to_string(),
+                    "Gmail".to_string(),
+                    "Microsoft Word".to_string(),
+                    "Mozilla Thunderbird".to_string(),
+                ],
+            },
+            ToneConfig {
+                id: "semiformal".to_string(),
+                name: "Semi-formel".to_string(),
+                description: "Communications de travail décontractées".to_string(),
+                icon: "💬".to_string(),
+                prompt_modifier: r#"Reformule de manière semi-formelle:
+- Garde un ton professionnel mais accessible
+- Tutoiement ou vouvoiement selon le contexte
+- Corrige les erreurs sans être trop rigide
+- Style concis et direct"#.to_string(),
+                apps: vec![
+                    "Slack".to_string(),
+                    "Microsoft Teams".to_string(),
+                    "Discord".to_string(),
+                ],
+            },
+            ToneConfig {
+                id: "casual".to_string(),
+                name: "Casual".to_string(),
+                description: "Messages entre amis et famille".to_string(),
+                icon: "😎".to_string(),
+                prompt_modifier: r#"Reformule de manière décontractée:
+- Ton amical et naturel
+- Tutoiement
+- Utilise des emojis occasionnellement si approprié
+- Garde les abréviations courantes
+- Corrige juste les erreurs évidentes"#.to_string(),
+                apps: vec![
+                    "WhatsApp".to_string(),
+                    "Messenger".to_string(),
+                    "Telegram".to_string(),
+                    "Signal".to_string(),
+                ],
+            },
+            ToneConfig {
+                id: "technical".to_string(),
+                name: "Technique".to_string(),
+                description: "Code et documentation".to_string(),
+                icon: "💻".to_string(),
+                prompt_modifier: r#"Format technique pour IDE/code:
+- Si c'est une demande de code, génère le code approprié
+- Si c'est un commentaire, formate-le correctement (// ou /* */)
+- Préserve les termes techniques en anglais
+- Respecte la casse: camelCase, PascalCase, snake_case
+- Pas de markdown ni backticks"#.to_string(),
+                apps: vec![
+                    "Visual Studio Code".to_string(),
+                    "IntelliJ IDEA".to_string(),
+                    "PyCharm".to_string(),
+                    "WebStorm".to_string(),
+                    "Sublime Text".to_string(),
+                    "Notepad++".to_string(),
+                ],
+            },
+            ToneConfig {
+                id: "notes".to_string(),
+                name: "Notes".to_string(),
+                description: "Prise de notes et documentation".to_string(),
+                icon: "📝".to_string(),
+                prompt_modifier: r#"Format pour prise de notes:
+- Structure avec bullet points si approprié
+- Identifie les points clés
+- Style concis et organisé
+- Peut utiliser du markdown basique"#.to_string(),
+                apps: vec![
+                    "Notion".to_string(),
+                    "Obsidian".to_string(),
+                    "Evernote".to_string(),
+                    "Microsoft OneNote".to_string(),
+                ],
+            },
+            ToneConfig {
+                id: "creative".to_string(),
+                name: "Créatif".to_string(),
+                description: "Écriture créative et storytelling".to_string(),
+                icon: "✨".to_string(),
+                prompt_modifier: r#"Style créatif et expressif:
+- Enrichis le vocabulaire
+- Garde le ton personnel de l'auteur
+- Améliore la fluidité sans changer le sens
+- Ponctuation expressive autorisée"#.to_string(),
+                apps: vec![],
+            },
+        ]
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "lowercase")]
 pub enum LLMProvider {
@@ -85,6 +203,12 @@ pub struct LLMConnectSettings {
     pub app_detection_enabled: bool,
     #[serde(default)]
     pub app_rules: Vec<AppPromptRule>,
+    #[serde(default)]
+    pub tones: Vec<ToneConfig>,
+    #[serde(default)]
+    pub app_tone_overrides: HashMap<String, String>,
+    #[serde(default)]
+    pub default_tone_id: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -164,6 +288,9 @@ impl Default for LLMConnectSettings {
             providers,
             app_detection_enabled: false,
             app_rules: Vec::new(),
+            tones: ToneConfig::default_tones(),
+            app_tone_overrides: HashMap::new(),
+            default_tone_id: None,
         }
     }
 }
@@ -361,4 +488,11 @@ pub struct GoogleMultimodalRequest {
 pub struct AppContextEvent {
     pub app_name: String,
     pub rule_name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToneAppliedEvent {
+    pub tone_id: String,
+    pub tone_name: String,
+    pub detected_app: Option<String>,
 }
