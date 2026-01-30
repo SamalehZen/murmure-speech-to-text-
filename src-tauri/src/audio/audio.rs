@@ -251,16 +251,16 @@ pub fn stop_recording(app: &AppHandle) -> Option<std::path::PathBuf> {
                     Err(e) => {
                         error!("Processing failed: {}", e);
                         let _ = app_handle.emit("llm-error", e.to_string());
+                        let s = crate::settings::load_settings(&app_handle);
+                        if s.overlay_mode.as_str() == "recording" {
+                            overlay::hide_recording_overlay(&app_handle);
+                        }
                     }
                 }
             });
         }
 
         let _ = app.emit("mic-level", 0.0f32);
-        let s = crate::settings::load_settings(app);
-        if s.overlay_mode.as_str() == "recording" {
-            overlay::hide_recording_overlay(app);
-        }
 
         return path;
     } else {
@@ -270,6 +270,11 @@ pub fn stop_recording(app: &AppHandle) -> Option<std::path::PathBuf> {
 }
 
 pub fn write_transcription(app: &AppHandle, transcription: &str) -> Result<()> {
+    let s = crate::settings::load_settings(app);
+    if s.overlay_mode.as_str() == "recording" {
+        overlay::hide_recording_overlay(app);
+    }
+
     if let Err(e) = clipboard::paste(transcription, app) {
         error!("Failed to paste text: {}", e);
     }
