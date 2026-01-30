@@ -4,7 +4,7 @@ use crate::audio::recorder::AudioRecorder;
 use crate::audio::types::{AudioState, RecordingMode};
 use crate::clipboard;
 use crate::overlay::overlay;
-use crate::app_context::{self, ActiveWindowInfo};
+use crate::app_context::{self, ActiveWindowInfo, AppCategory};
 use anyhow::Result;
 use log::{debug, error, info, warn};
 use once_cell::sync::Lazy;
@@ -23,6 +23,122 @@ pub fn capture_active_window_for_command() {
             warn!("Failed to capture active window at record start: {}", e);
             *CAPTURED_WINDOW_INFO.lock() = None;
         }
+    }
+}
+
+pub fn emit_detected_app(app: &AppHandle) {
+    match app_context::get_active_window() {
+        Ok(info) => {
+            let category = app_context::classify_app(&info);
+            let icon_key = get_icon_key_for_app(&info, category);
+            debug!("Detected app for overlay: {} (category: {:?}, icon: {})", info.app_name, category, icon_key);
+            let _ = app.emit("detected-app", DetectedAppEvent {
+                app_name: info.app_name,
+                category: format!("{:?}", category).to_lowercase(),
+                icon_key,
+            });
+        }
+        Err(e) => {
+            debug!("Failed to detect app for overlay: {}", e);
+            let _ = app.emit("detected-app", DetectedAppEvent {
+                app_name: String::new(),
+                category: "default".to_string(),
+                icon_key: "default".to_string(),
+            });
+        }
+    }
+}
+
+#[derive(Clone, serde::Serialize)]
+struct DetectedAppEvent {
+    app_name: String,
+    category: String,
+    icon_key: String,
+}
+
+fn get_icon_key_for_app(info: &ActiveWindowInfo, category: AppCategory) -> String {
+    let app_lower = info.app_name.to_lowercase();
+    let url_lower = info.url.as_deref().unwrap_or("").to_lowercase();
+    let title_lower = info.window_title.to_lowercase();
+    
+    if url_lower.contains("mail.google.com") || url_lower.contains("gmail") {
+        return "gmail".to_string();
+    }
+    if url_lower.contains("outlook") || app_lower.contains("outlook") {
+        return "outlook".to_string();
+    }
+    if url_lower.contains("slack.com") || app_lower.contains("slack") {
+        return "slack".to_string();
+    }
+    if url_lower.contains("discord") || app_lower.contains("discord") {
+        return "discord".to_string();
+    }
+    if url_lower.contains("whatsapp") || app_lower.contains("whatsapp") {
+        return "whatsapp".to_string();
+    }
+    if url_lower.contains("telegram") || app_lower.contains("telegram") {
+        return "telegram".to_string();
+    }
+    if url_lower.contains("notion") || app_lower.contains("notion") {
+        return "notion".to_string();
+    }
+    if url_lower.contains("github") || app_lower.contains("github") {
+        return "github".to_string();
+    }
+    if url_lower.contains("linear") || app_lower.contains("linear") {
+        return "linear".to_string();
+    }
+    if url_lower.contains("jira") || url_lower.contains("atlassian") || app_lower.contains("jira") {
+        return "jira".to_string();
+    }
+    if url_lower.contains("figma") || app_lower.contains("figma") {
+        return "figma".to_string();
+    }
+    if url_lower.contains("youtube") || app_lower.contains("youtube") {
+        return "youtube".to_string();
+    }
+    if url_lower.contains("spotify") || app_lower.contains("spotify") {
+        return "spotify".to_string();
+    }
+    if url_lower.contains("twitter") || url_lower.contains("x.com") || app_lower.contains("twitter") {
+        return "twitter".to_string();
+    }
+    if url_lower.contains("linkedin") || app_lower.contains("linkedin") {
+        return "linkedin".to_string();
+    }
+    if url_lower.contains("amazon") || app_lower.contains("amazon") {
+        return "amazon".to_string();
+    }
+    if url_lower.contains("docs.google") {
+        return "docs".to_string();
+    }
+    if app_lower.contains("code") || app_lower.contains("vscode") || title_lower.contains("visual studio") {
+        return "vscode".to_string();
+    }
+    if app_lower.contains("terminal") || app_lower.contains("iterm") || app_lower.contains("warp") 
+       || app_lower.contains("alacritty") || app_lower.contains("kitty") {
+        return "terminal".to_string();
+    }
+    if app_lower.contains("chrome") || app_lower.contains("firefox") || app_lower.contains("safari")
+       || app_lower.contains("edge") || app_lower.contains("brave") {
+        return "browser".to_string();
+    }
+    
+    match category {
+        AppCategory::Email => "email".to_string(),
+        AppCategory::Chat => "chat".to_string(),
+        AppCategory::Code => "code".to_string(),
+        AppCategory::Terminal => "terminal".to_string(),
+        AppCategory::Notes => "notes".to_string(),
+        AppCategory::Design => "design".to_string(),
+        AppCategory::Music => "music".to_string(),
+        AppCategory::Video => "video".to_string(),
+        AppCategory::Social => "social".to_string(),
+        AppCategory::Shopping => "shopping".to_string(),
+        AppCategory::Office => "office".to_string(),
+        AppCategory::Productivity => "productivity".to_string(),
+        AppCategory::Browser => "browser".to_string(),
+        _ => "default".to_string(),
     }
 }
 
@@ -82,6 +198,8 @@ fn internal_record_audio(app: &AppHandle) {
             }
             *state.recorder.lock() = Some(recorder);
             debug!("Recording started");
+
+            emit_detected_app(app);
 
             let s = crate::settings::load_settings(app);
             if s.overlay_mode.as_str() == "recording" {

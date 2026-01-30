@@ -1,20 +1,29 @@
 import { listen } from '@tauri-apps/api/event';
 import React, { useEffect, useState } from 'react';
 import { AudioVisualizer } from '@/features/home/audio-visualizer/audio-visualizer';
+import { AppIcon } from './app-icons';
 
 interface LLMConnectSettings {
     modes: { name: string }[];
     active_mode_index: number;
 }
 
+interface DetectedAppEvent {
+    app_name: string;
+    category: string;
+    icon_key: string;
+}
+
 export const Overlay: React.FC = () => {
     const [feedback, setFeedback] = useState<string | null>(null);
+    const [detectedApp, setDetectedApp] = useState<DetectedAppEvent | null>(null);
 
     useEffect(() => {
-        const unlistenPromise = listen<string>('overlay-feedback', (event) => {
+        const unlistenFeedback = listen<string>('overlay-feedback', (event) => {
             setFeedback(event.payload);
         });
-        const unlistenSettingsPromise = listen<LLMConnectSettings>(
+
+        const unlistenSettings = listen<LLMConnectSettings>(
             'llm-settings-updated',
             (event) => {
                 const activeMode =
@@ -25,9 +34,22 @@ export const Overlay: React.FC = () => {
             }
         );
 
+        const unlistenDetectedApp = listen<DetectedAppEvent>(
+            'detected-app',
+            (event) => {
+                setDetectedApp(event.payload);
+            }
+        );
+
+        const unlistenHide = listen('hide-overlay', () => {
+            setDetectedApp(null);
+        });
+
         return () => {
-            unlistenPromise.then((unlisten) => unlisten());
-            unlistenSettingsPromise.then((unlisten) => unlisten());
+            unlistenFeedback.then((unlisten) => unlisten());
+            unlistenSettings.then((unlisten) => unlisten());
+            unlistenDetectedApp.then((unlisten) => unlisten());
+            unlistenHide.then((unlisten) => unlisten());
         };
     }, []);
 
@@ -38,17 +60,24 @@ export const Overlay: React.FC = () => {
         }
     }, [feedback]);
 
+    const showIcon = detectedApp && detectedApp.icon_key !== 'default';
+
     return (
-        <div className="w-[80px] h-[18px] bg-black rounded-sm flex items-center justify-center select-none overflow-hidden">
+        <div className="h-[18px] bg-black/90 rounded-full flex items-center justify-center select-none overflow-hidden px-2 gap-1.5 backdrop-blur-sm border border-white/10">
+            {showIcon && (
+                <div className="flex-shrink-0 animate-in fade-in slide-in-from-left-2 duration-300">
+                    <AppIcon appKey={detectedApp.icon_key} size={12} />
+                </div>
+            )}
             {feedback ? (
-                <span className="text-[10px] text-white font-medium truncate px-1 animate-in fade-in zoom-in duration-200">
+                <span className="text-[9px] text-white font-medium truncate animate-in fade-in zoom-in duration-200">
                     {feedback}
                 </span>
             ) : (
                 <div className="origin-center">
                     <AudioVisualizer
                         className="bg-transparent"
-                        bars={14}
+                        bars={12}
                         rows={9}
                         audioPixelWidth={2}
                         audioPixelHeight={2}
