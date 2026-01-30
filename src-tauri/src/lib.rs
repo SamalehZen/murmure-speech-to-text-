@@ -218,7 +218,19 @@ pub fn run() {
             test_app_dictionary_term,
             set_app_dictionary_override,
             export_app_dictionaries,
-            import_app_dictionaries
+            import_app_dictionaries,
+            get_templates,
+            get_template_settings,
+            set_templates,
+            add_template,
+            update_template,
+            delete_template,
+            get_templates_for_app,
+            toggle_templates,
+            set_template_trigger_prefix,
+            export_templates,
+            import_templates,
+            reset_templates_to_default
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,6 +1,7 @@
 import { useTranslation } from '@/i18n';
 import { useState, useEffect } from 'react';
 import { useLLMConnect, LLMMode } from './hooks/use-llm-connect';
+import { useTemplates } from './hooks/use-templates';
 import { toast } from 'react-toastify';
 import { getPresetLabel, getPromptByPreset } from './llm-connect.helpers';
 import { LLMConnectOnboarding } from './onboarding/llm-connect-onboarding';
@@ -13,6 +14,7 @@ import { ApiKeyConfig } from './components/api-key-config';
 import { AppDetectionSettings } from './components/app-detection-settings';
 import { ToneSettings } from './components/tone-settings';
 import { AppDictionarySettingsComponent } from './components/app-dictionary-settings';
+import { TemplateSettings } from './components/template-settings';
 import { SettingsUI } from '@/components/settings-ui';
 import { LLMProvider, ProviderConfig } from './llm-connect.types';
 
@@ -48,6 +50,12 @@ export const LLMConnect = () => {
         setAppToneOverride,
         setDefaultTone,
     } = useLLMConnect();
+
+    const {
+        settings: templateSettings,
+        isLoaded: isTemplatesLoaded,
+        refreshSettings: refreshTemplateSettings,
+    } = useTemplates();
 
     const [showModelSelector, setShowModelSelector] = useState(false);
 
@@ -297,6 +305,13 @@ export const LLMConnect = () => {
                             currentDetectedApp={currentActiveWindow?.detected_app}
                             onRefreshCurrentApp={refreshActiveWindow}
                         />
+
+                        {isTemplatesLoaded && (
+                            <TemplateSettings
+                                settings={templateSettings}
+                                onRefresh={refreshTemplateSettings}
+                            />
+                        )}
                     </>
                 )}
 
