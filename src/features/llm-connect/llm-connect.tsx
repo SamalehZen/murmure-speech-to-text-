@@ -16,6 +16,7 @@ import { ToneSettings } from './components/tone-settings';
 import { StyleLearningSettings } from './components/style-learning-settings';
 import { AppDictionarySettingsComponent } from './components/app-dictionary-settings';
 import { TemplateSettings } from './components/template-settings';
+import { VoiceCommandSettings } from './components/voice-command-settings';
 import { SettingsUI } from '@/components/settings-ui';
 import { LLMProvider, ProviderConfig } from './llm-connect.types';
 
@@ -280,6 +281,8 @@ export const LLMConnect = () => {
                         </>
                     )}
                 </SettingsUI.Container>
+
+                <VoiceCommandSettings />
 
                 <AppDetectionSettings
                     enabled={appDetectionEnabled}

@@ -17,6 +17,7 @@ use crate::style_learning::{
     analyze_text, generate_style_prompt, load_style_learning_settings, merge_patterns,
     save_style_learning_settings, StyleProfile,
 };
+use crate::voice_commands::{load_voice_command_settings, CommandParser};
 use anyhow::{Context, Result};
 use log::{debug, error, info, warn};
 use std::path::Path;
@@ -46,10 +47,12 @@ pub async fn process_recording(app: &AppHandle, file_path: &Path) -> Result<Stri
         return Ok(template_content);
     }
 
+    let text_after_commands = apply_voice_commands(app, raw_text);
+
     let text = if recording_mode == RecordingMode::Command {
-        raw_text
+        text_after_commands
     } else {
-        apply_dictionary_and_rules(app, raw_text)?
+        apply_dictionary_and_rules(app, text_after_commands)?
     };
 
     let final_text = apply_formatting_rules(app, text);
@@ -105,6 +108,34 @@ fn get_detected_app_name(app: &AppHandle) -> Option<String> {
             Err(_) => None,
         },
     }
+}
+
+fn apply_voice_commands(app: &AppHandle, text: String) -> String {
+    let settings = load_voice_command_settings(app);
+
+    if !settings.enabled {
+        return text;
+    }
+
+    let mut parser = CommandParser::new(settings.commands.clone());
+    let parsed = parser.parse(&text, &settings);
+
+    if parsed.contains("[CLEAR]") {
+        debug!("Voice command: CLEAR detected, returning empty string");
+        let _ = app.emit("voice-command-executed", "clear_all");
+        return String::new();
+    }
+
+    if parsed.contains("[UNDO]") {
+        debug!("Voice command: UNDO detected");
+        let _ = app.emit("voice-command-undo", ());
+        let _ = app.emit("voice-command-executed", "undo");
+        return parsed.replace("[UNDO]", "");
+    }
+
+    let _ = app.emit("voice-command-executed", "parsed");
+    debug!("Text after voice commands: {}", parsed);
+    parsed
 }
 
 fn get_effective_prompt(
