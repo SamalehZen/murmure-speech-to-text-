@@ -10,9 +10,13 @@ use crate::llm::helpers::load_llm_connect_settings;
 use crate::llm::providers;
 use crate::llm::templates::{detect_and_apply_template, load_template_settings};
 use crate::llm::types::{
-    AppContextEvent, LLMConnectSettings, TemplateAppliedEvent, ToneAppliedEvent, ToneConfig,
+    AppContextEvent, TemplateAppliedEvent, ToneAppliedEvent, ToneConfig,
 };
 use crate::stats;
+use crate::style_learning::{
+    analyze_text, generate_style_prompt, load_style_learning_settings, merge_patterns,
+    save_style_learning_settings, StyleProfile,
+};
 use anyhow::{Context, Result};
 use log::{debug, error, info, warn};
 use std::path::Path;
@@ -52,6 +56,8 @@ pub async fn process_recording(app: &AppHandle, file_path: &Path) -> Result<Stri
     debug!("Final text with formatting rules: {}", final_text);
 
     save_stats_and_history(app, file_path, &final_text)?;
+
+    record_for_style_learning(app, &final_text);
 
     Ok(final_text)
 }
@@ -150,15 +156,21 @@ fn get_effective_prompt(
             },
         );
         let prompt_with_tone = build_prompt_with_tone(&rule.prompt_template, tone.as_ref());
-        return Ok(Some(prompt_with_tone));
+        let prompt_with_style =
+            build_prompt_with_style(app, prompt_with_tone, window_info.detected_app.as_deref());
+        return Ok(Some(prompt_with_style));
     }
 
     if tone.is_some() {
         let prompt_with_tone = build_prompt_with_tone(&default_prompt, tone.as_ref());
-        return Ok(Some(prompt_with_tone));
+        let prompt_with_style =
+            build_prompt_with_style(app, prompt_with_tone, window_info.detected_app.as_deref());
+        return Ok(Some(prompt_with_style));
     }
 
-    Ok(Some(default_prompt))
+    let prompt_with_style =
+        build_prompt_with_style(app, default_prompt, window_info.detected_app.as_deref());
+    Ok(Some(prompt_with_style))
 }
 
 fn get_tone_for_detected_app(
@@ -199,7 +211,132 @@ fn build_prompt_with_tone(base_prompt: &str, tone: Option<&ToneConfig>) -> Strin
     }
 }
 
-fn get_command_mode_prompt(app: &AppHandle) -> Option<(String, String, Option<ToneConfig>)> {
+fn build_prompt_with_style(
+    app: &AppHandle,
+    prompt: String,
+    detected_app: Option<&str>,
+) -> String {
+    let style_settings = load_style_learning_settings(app);
+
+    if !style_settings.enabled {
+        return prompt;
+    }
+
+    let app_name = match detected_app {
+        Some(name) => name,
+        None => return prompt,
+    };
+
+    if style_settings.excluded_apps.contains(&app_name.to_string()) {
+        return prompt;
+    }
+
+    match style_settings.profiles.get(app_name) {
+        Some(profile)
+            if profile.enabled
+                && profile.sample_count >= style_settings.min_samples_for_learning =>
+        {
+            let style_prompt = generate_style_prompt(&profile.patterns);
+            if style_prompt.is_empty() {
+                prompt
+            } else {
+                info!("Style learning - Applying learned style for app '{}'", app_name);
+                format!("{}\n\n{}", prompt, style_prompt)
+            }
+        }
+        _ => prompt,
+    }
+}
+
+fn record_for_style_learning(app: &AppHandle, text: &str) {
+    let style_settings = load_style_learning_settings(app);
+
+    if !style_settings.enabled {
+        return;
+    }
+
+    let detected_app = match get_detected_app_name(app) {
+        Some(name) => name,
+        None => return,
+    };
+
+    if style_settings.excluded_apps.contains(&detected_app) {
+        debug!("Style learning - App '{}' is excluded", detected_app);
+        return;
+    }
+
+    if text.trim().len() < 10 {
+        debug!("Style learning - Text too short to learn from");
+        return;
+    }
+
+    let mut settings = style_settings;
+    let profile = settings
+        .profiles
+        .entry(detected_app.clone())
+        .or_insert_with(|| StyleProfile::new(&detected_app));
+
+    let new_patterns = analyze_text(text);
+    let weight = (1.0 / (profile.sample_count as f32 + 1.0)).min(0.5);
+    profile.patterns = merge_patterns(&profile.patterns, &new_patterns, weight);
+
+    profile.examples.push(text.to_string());
+    if profile.examples.len() > settings.max_examples_stored as usize {
+        profile.examples.remove(0);
+    }
+
+    profile.sample_count += 1;
+    profile.last_updated = chrono::Utc::now().to_rfc3339();
+
+    if let Err(e) = save_style_learning_settings(app, &settings) {
+        error!("Failed to save style learning data: {}", e);
+    } else {
+        debug!(
+            "Style learning - Recorded sample #{} for app '{}'",
+            profile.sample_count, detected_app
+        );
+    }
+}
+
+fn get_style_section_for_command_mode(app: &AppHandle, detected_app: Option<&str>) -> String {
+    let style_settings = load_style_learning_settings(app);
+
+    if !style_settings.enabled {
+        return String::new();
+    }
+
+    let app_name = match detected_app {
+        Some(name) => name,
+        None => return String::new(),
+    };
+
+    if style_settings.excluded_apps.contains(&app_name.to_string()) {
+        return String::new();
+    }
+
+    match style_settings.profiles.get(app_name) {
+        Some(profile)
+            if profile.enabled
+                && profile.sample_count >= style_settings.min_samples_for_learning =>
+        {
+            let style_prompt = generate_style_prompt(&profile.patterns);
+            if style_prompt.is_empty() {
+                String::new()
+            } else {
+                info!(
+                    "Command mode - Applying learned style for app '{}'",
+                    app_name
+                );
+                format!("\n\n{}", style_prompt)
+            }
+        }
+        _ => String::new(),
+    }
+}
+
+fn get_command_mode_prompt(
+    app: &AppHandle,
+) -> Option<(String, String, Option<ToneConfig>, Option<String>)> {
     let settings = load_llm_connect_settings(app);
 
     if !settings.app_detection_enabled {
@@ -227,19 +364,20 @@ fn get_command_mode_prompt(app: &AppHandle) -> Option<(String, String, Option<To
         }
     };
 
-    let tone = get_tone_for_detected_app(&settings, window_info.detected_app.as_deref());
+    let detected_app = window_info.detected_app.clone();
+    let tone = get_tone_for_detected_app(&settings, detected_app.as_deref());
 
     if let Some(ref t) = tone {
         info!(
             "Command mode - Matched tone: '{}' for app {:?}",
-            t.name, window_info.detected_app
+            t.name, detected_app
         );
         let _ = app.emit(
             "tone-applied",
             ToneAppliedEvent {
                 tone_id: t.id.clone(),
                 tone_name: t.name.clone(),
-                detected_app: window_info.detected_app.clone(),
+                detected_app: detected_app.clone(),
             },
         );
     }
@@ -253,7 +391,12 @@ fn get_command_mode_prompt(app: &AppHandle) -> Option<(String, String, Option<To
                 rule_name: rule.name.clone(),
             },
         );
-        return Some((rule.name.clone(), rule.prompt_template.clone(), tone));
+        return Some((
+            rule.name.clone(),
+            rule.prompt_template.clone(),
+            tone,
+            detected_app,
+        ));
     }
 
     if tone.is_some() {
@@ -262,7 +405,7 @@ fn get_command_mode_prompt(app: &AppHandle) -> Option<(String, String, Option<To
             .get(settings.active_mode_index)
             .map(|m| m.prompt.clone())
             .unwrap_or_default();
-        return Some(("Tone".to_string(), default_prompt, tone));
+        return Some(("Tone".to_string(), default_prompt, tone, detected_app));
     }
 
     debug!(
@@ -307,7 +450,7 @@ async fn transcribe_and_reformat(app: &AppHandle, audio_path: &Path) -> Result<S
     };
 
     let combined_prompt = match get_command_mode_prompt(app) {
-        Some((rule_name, prompt_template, tone)) => {
+        Some((rule_name, prompt_template, tone, detected_app)) => {
             info!(
                 "Command mode - Using app rule '{}' for transcription + reformulation in ONE API call",
                 rule_name
@@ -330,10 +473,13 @@ async fn transcribe_and_reformat(app: &AppHandle, audio_path: &Path) -> Result<S
                     "[Apply instructions to the transcribed audio]",
                 );
 
+            let style_section = get_style_section_for_command_mode(app, detected_app.as_deref());
+
             let full_prompt = format!(
-                "You will receive an audio file. Your task:\n1. Transcribe the audio accurately\n2. Apply the following reformulation instructions to the transcription\n3. Return ONLY the final reformulated text, nothing else\n\n<reformulation_instructions>\n{}\n</reformulation_instructions>{}{}",
+                "You will receive an audio file. Your task:\n1. Transcribe the audio accurately\n2. Apply the following reformulation instructions to the transcription\n3. Return ONLY the final reformulated text, nothing else\n\n<reformulation_instructions>\n{}\n</reformulation_instructions>{}{}{}",
                 clean_template,
                 tone_section,
+                style_section,
                 context_section
             );
 

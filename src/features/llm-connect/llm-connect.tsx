@@ -13,6 +13,7 @@ import { ProviderSelector } from './components/provider-selector';
 import { ApiKeyConfig } from './components/api-key-config';
 import { AppDetectionSettings } from './components/app-detection-settings';
 import { ToneSettings } from './components/tone-settings';
+import { StyleLearningSettings } from './components/style-learning-settings';
 import { AppDictionarySettingsComponent } from './components/app-dictionary-settings';
 import { TemplateSettings } from './components/template-settings';
 import { SettingsUI } from '@/components/settings-ui';
@@ -300,6 +301,8 @@ export const LLMConnect = () => {
                             onSetAppToneOverride={setAppToneOverride}
                             onSetDefaultTone={setDefaultTone}
                         />
+
+                        <StyleLearningSettings />
 
                         <AppDictionarySettingsComponent
                             currentDetectedApp={currentActiveWindow?.detected_app}

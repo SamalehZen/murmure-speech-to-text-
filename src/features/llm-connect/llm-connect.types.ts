@@ -209,3 +209,37 @@ Reformule en message conversationnel approprié:
         enabled: true,
     },
 ];
+
+export type EmojiUsage = 'never' | 'rarely' | 'sometimes' | 'often';
+export type Formality = 'formal' | 'neutral' | 'casual';
+export type MessageLength = 'short' | 'medium' | 'long';
+export type PunctuationStyle = 'minimal' | 'standard' | 'expressive';
+
+export interface LearnedPatterns {
+    greetings: string[];
+    closings: string[];
+    commonPhrases: string[];
+    emojiUsage: EmojiUsage;
+    formality: Formality;
+    averageLength: MessageLength;
+    punctuationStyle: PunctuationStyle;
+    usesAbbreviations: boolean;
+    usesTutoring: boolean;
+}
+
+export interface StyleProfile {
+    appName: string;
+    patterns: LearnedPatterns;
+    examples: string[];
+    sampleCount: number;
+    lastUpdated: string;
+    enabled: boolean;
+}
+
+export interface StyleLearningSettings {
+    enabled: boolean;
+    profiles: Record<string, StyleProfile>;
+    minSamplesForLearning: number;
+    maxExamplesStored: number;
+    excludedApps: string[];
+}

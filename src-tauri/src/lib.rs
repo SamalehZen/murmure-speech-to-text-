@@ -14,6 +14,7 @@ mod overlay;
 mod settings;
 mod shortcuts;
 mod stats;
+mod style_learning;
 mod utils;
 
 use crate::shortcuts::init_shortcuts;
@@ -230,7 +231,19 @@ pub fn run() {
             set_template_trigger_prefix,
             export_templates,
             import_templates,
-            reset_templates_to_default
+            reset_templates_to_default,
+            get_style_learning_settings,
+            set_style_learning_settings,
+            toggle_style_learning,
+            get_style_profile,
+            reset_style_profile,
+            reset_all_style_profiles,
+            toggle_app_style_learning,
+            add_excluded_app,
+            remove_excluded_app,
+            get_style_preview,
+            analyze_sample_text,
+            record_style_sample
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
