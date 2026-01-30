@@ -5,7 +5,7 @@ use crate::formatting_rules;
 use crate::history;
 use crate::llm::helpers::load_llm_connect_settings;
 use crate::llm::providers;
-use crate::llm::types::{AppContextEvent, LLMConnectSettings};
+use crate::llm::types::{AppContextEvent, LLMConnectSettings, ToneAppliedEvent, ToneConfig};
 use crate::stats;
 use anyhow::{Context, Result};
 use log::{debug, error, info, warn};
@@ -67,6 +67,23 @@ fn get_effective_prompt(
         Err(_) => return Ok(Some(default_prompt)),
     };
 
+    let tone = get_tone_for_detected_app(settings, window_info.detected_app.as_deref());
+
+    if let Some(ref t) = tone {
+        info!(
+            "Matched tone: '{}' for app {:?}",
+            t.name, window_info.detected_app
+        );
+        let _ = app.emit(
+            "tone-applied",
+            ToneAppliedEvent {
+                tone_id: t.id.clone(),
+                tone_name: t.name.clone(),
+                detected_app: window_info.detected_app.clone(),
+            },
+        );
+    }
+
     if let Some(rule) = app_context::find_best_matching_rule(&settings.app_rules, &window_info) {
         let _ = app.emit(
             "app-context-matched",
@@ -75,13 +92,57 @@ fn get_effective_prompt(
                 rule_name: rule.name.clone(),
             },
         );
-        return Ok(Some(rule.prompt_template.clone()));
+        let prompt_with_tone = build_prompt_with_tone(&rule.prompt_template, tone.as_ref());
+        return Ok(Some(prompt_with_tone));
+    }
+
+    if tone.is_some() {
+        let prompt_with_tone = build_prompt_with_tone(&default_prompt, tone.as_ref());
+        return Ok(Some(prompt_with_tone));
     }
 
     Ok(Some(default_prompt))
 }
 
-fn get_command_mode_prompt(app: &AppHandle) -> Option<(String, String)> {
+fn get_tone_for_detected_app(
+    settings: &LLMConnectSettings,
+    detected_app: Option<&str>,
+) -> Option<ToneConfig> {
+    let tones = if settings.tones.is_empty() {
+        ToneConfig::default_tones()
+    } else {
+        settings.tones.clone()
+    };
+
+    if let Some(app_name) = detected_app {
+        if let Some(tone_id) = settings.app_tone_overrides.get(app_name) {
+            return tones.iter().find(|t| &t.id == tone_id).cloned();
+        }
+
+        for tone in &tones {
+            if tone.apps.iter().any(|a| a == app_name) {
+                return Some(tone.clone());
+            }
+        }
+    }
+
+    settings
+        .default_tone_id
+        .as_ref()
+        .and_then(|id| tones.iter().find(|t| &t.id == id).cloned())
+}
+
+fn build_prompt_with_tone(base_prompt: &str, tone: Option<&ToneConfig>) -> String {
+    match tone {
+        Some(t) => format!(
+            "{base_prompt}\n\n<tone>\n{}\n</tone>\n\n<input>{{{{TRANSCRIPT}}}}</input>",
+            t.prompt_modifier
+        ),
+        None => base_prompt.to_string(),
+    }
+}
+
+fn get_command_mode_prompt(app: &AppHandle) -> Option<(String, String, Option<ToneConfig>)> {
     let settings = load_llm_connect_settings(app);
 
     if !settings.app_detection_enabled {
@@ -92,8 +153,8 @@ fn get_command_mode_prompt(app: &AppHandle) -> Option<(String, String)> {
     let window_info = match crate::audio::audio::take_captured_window_info() {
         Some(info) => {
             info!(
-                "Command mode - Using captured window: app='{}', title='{}', process='{}', url={:?}",
-                info.app_name, info.window_title, info.process_name, info.browser_url
+                "Command mode - Using captured window: app='{}', title='{}', process='{}', url={:?}, detected_app={:?}",
+                info.app_name, info.window_title, info.process_name, info.browser_url, info.detected_app
             );
             info
         }
@@ -109,6 +170,23 @@ fn get_command_mode_prompt(app: &AppHandle) -> Option<(String, String)> {
         }
     };
 
+    let tone = get_tone_for_detected_app(&settings, window_info.detected_app.as_deref());
+
+    if let Some(ref t) = tone {
+        info!(
+            "Command mode - Matched tone: '{}' for app {:?}",
+            t.name, window_info.detected_app
+        );
+        let _ = app.emit(
+            "tone-applied",
+            ToneAppliedEvent {
+                tone_id: t.id.clone(),
+                tone_name: t.name.clone(),
+                detected_app: window_info.detected_app.clone(),
+            },
+        );
+    }
+
     if let Some(rule) = app_context::find_best_matching_rule(&settings.app_rules, &window_info) {
         info!("Command mode - Matched app rule: '{}'", rule.name);
         let _ = app.emit(
@@ -118,11 +196,20 @@ fn get_command_mode_prompt(app: &AppHandle) -> Option<(String, String)> {
                 rule_name: rule.name.clone(),
             },
         );
-        return Some((rule.name.clone(), rule.prompt_template.clone()));
+        return Some((rule.name.clone(), rule.prompt_template.clone(), tone));
+    }
+
+    if tone.is_some() {
+        let default_prompt = settings
+            .modes
+            .get(settings.active_mode_index)
+            .map(|m| m.prompt.clone())
+            .unwrap_or_default();
+        return Some(("Tone".to_string(), default_prompt, tone));
     }
 
     debug!(
-        "Command mode - No matching app rule found for window: app='{}', title='{}', url={:?}",
+        "Command mode - No matching app rule or tone found for window: app='{}', title='{}', url={:?}",
         window_info.app_name, window_info.window_title, window_info.browser_url
     );
     None
@@ -163,7 +250,7 @@ async fn transcribe_and_reformat(app: &AppHandle, audio_path: &Path) -> Result<S
     };
 
     let combined_prompt = match get_command_mode_prompt(app) {
-        Some((rule_name, prompt_template)) => {
+        Some((rule_name, prompt_template, tone)) => {
             info!(
                 "Command mode - Using app rule '{}' for transcription + reformulation in ONE API call",
                 rule_name
@@ -171,6 +258,11 @@ async fn transcribe_and_reformat(app: &AppHandle, audio_path: &Path) -> Result<S
 
             let context_section = match &selected_text {
                 Some(text) => format!("\n\n<selected_text>\n{}\n</selected_text>", text),
+                None => String::new(),
+            };
+
+            let tone_section = match &tone {
+                Some(t) => format!("\n\n<tone>\n{}\n</tone>", t.prompt_modifier),
                 None => String::new(),
             };
 
@@ -182,8 +274,9 @@ async fn transcribe_and_reformat(app: &AppHandle, audio_path: &Path) -> Result<S
                 );
 
             let full_prompt = format!(
-                "You will receive an audio file. Your task:\n1. Transcribe the audio accurately\n2. Apply the following reformulation instructions to the transcription\n3. Return ONLY the final reformulated text, nothing else\n\n<reformulation_instructions>\n{}\n</reformulation_instructions>{}",
+                "You will receive an audio file. Your task:\n1. Transcribe the audio accurately\n2. Apply the following reformulation instructions to the transcription\n3. Return ONLY the final reformulated text, nothing else\n\n<reformulation_instructions>\n{}\n</reformulation_instructions>{}{}",
                 clean_template,
+                tone_section,
                 context_section
             );
 

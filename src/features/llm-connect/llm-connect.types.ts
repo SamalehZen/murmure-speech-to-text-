@@ -12,6 +12,7 @@ export interface ActiveWindowInfo {
     app_name: string;
     window_title: string;
     process_name: string;
+    detected_app?: string;
 }
 
 export type AppMatchType = 'app_name_contains' | 'window_title_contains' | 'process_name_equals' | 'window_title_regex';
@@ -24,6 +25,38 @@ export interface AppPromptRule {
     prompt_template: string;
     priority: number;
     enabled: boolean;
+}
+
+export interface ToneConfig {
+    id: string;
+    name: string;
+    description: string;
+    prompt_modifier: string;
+    icon: string;
+    apps: string[];
+}
+
+export interface LLMConnectSettings {
+    url: string;
+    model: string;
+    prompt: string;
+    modes: LLMMode[];
+    active_mode_index: number;
+    onboarding_completed: boolean;
+    active_provider: LLMProvider;
+    providers: Record<string, ProviderConfig>;
+    app_detection_enabled: boolean;
+    app_rules: AppPromptRule[];
+    tones: ToneConfig[];
+    app_tone_overrides: Record<string, string>;
+    default_tone_id?: string;
+}
+
+export interface LLMMode {
+    name: string;
+    prompt: string;
+    model: string;
+    shortcut: string;
 }
 
 export const PROVIDER_LABELS: Record<LLMProvider, string> = {
