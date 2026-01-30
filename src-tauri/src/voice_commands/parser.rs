@@ -25,7 +25,7 @@ impl CommandParser {
 
         let mut result = text.to_string();
 
-        let mut sorted_commands: Vec<_> = self.commands.iter().filter(|c| c.enabled).collect();
+        let mut sorted_commands: Vec<_> = self.commands.iter().filter(|c| c.enabled).cloned().collect();
         sorted_commands.sort_by(|a, b| {
             let max_a = a.triggers.iter().map(|t| t.len()).max().unwrap_or(0);
             let max_b = b.triggers.iter().map(|t| t.len()).max().unwrap_or(0);
