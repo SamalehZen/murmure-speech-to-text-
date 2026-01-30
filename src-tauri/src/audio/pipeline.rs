@@ -6,7 +6,7 @@ use crate::llm::helpers::load_llm_connect_settings;
 use crate::llm::providers;
 use crate::llm::types::{AppContextEvent, AppMatchType, AppPromptRule, LLMConnectSettings};
 use crate::stats;
-use crate::app_context;
+use crate::app_context::{self, AppCategory};
 use anyhow::{Context, Result};
 use log::{debug, error, info, warn};
 use regex::Regex;
@@ -61,61 +61,110 @@ fn rule_matches(window: &app_context::ActiveWindowInfo, rule: &AppPromptRule) ->
         AppMatchType::WindowTitleRegex => Regex::new(&rule.match_pattern)
             .map(|r| r.is_match(&window.window_title))
             .unwrap_or(false),
+        AppMatchType::UrlContains => window
+            .url
+            .as_ref()
+            .map(|url| url.to_lowercase().contains(&rule.match_pattern.to_lowercase()))
+            .unwrap_or(false),
+        AppMatchType::BundleIdEquals => window
+            .bundle_id
+            .as_ref()
+            .map(|bid| bid.to_lowercase() == rule.match_pattern.to_lowercase())
+            .unwrap_or(false),
     }
 }
 
+fn matches_url_pattern(url: &str, rule: &AppPromptRule) -> bool {
+    let url_lower = url.to_lowercase();
+    let pattern_lower = rule.match_pattern.to_lowercase();
+    
+    match rule.match_type {
+        AppMatchType::WindowTitleContains | AppMatchType::AppNameContains => {
+            url_lower.contains(&pattern_lower)
+        }
+        AppMatchType::WindowTitleRegex => {
+            Regex::new(&rule.match_pattern)
+                .map(|r| r.is_match(url))
+                .unwrap_or(false)
+        }
+        _ => false,
+    }
+}
+
+fn get_automatic_detection_prompt(window_info: &app_context::ActiveWindowInfo) -> Option<(String, String, AppCategory)> {
+    let category = app_context::classify_app(window_info);
+    
+    if category == AppCategory::Default || category == AppCategory::Browser {
+        return None;
+    }
+    
+    let prompt = app_context::get_prompt_for_category(category)?;
+    let rule_name = format!("Auto: {}", app_context::get_category_name(category));
+    
+    Some((rule_name, prompt.to_string(), category))
+}
+
 fn get_effective_prompt(app: &AppHandle, settings: &LLMConnectSettings) -> Result<Option<String>, String> {
-    if !settings.app_detection_enabled {
-        return Ok(None);
-    }
-
-    let default_prompt = settings
-        .modes
-        .get(settings.active_mode_index)
-        .map(|m| m.prompt.clone())
-        .unwrap_or_default();
-
-    if default_prompt.is_empty() {
-        return Ok(None);
-    }
-
     let window_info = match app_context::get_active_window() {
-        Ok(info) => info,
-        Err(_) => return Ok(Some(default_prompt)),
+        Ok(info) => {
+            debug!(
+                "Detected window: app='{}', title='{}', process='{}', url={:?}, bundle_id={:?}",
+                info.app_name, info.window_title, info.process_name, info.url, info.bundle_id
+            );
+            info
+        }
+        Err(e) => {
+            debug!("Failed to get active window: {}", e);
+            return Ok(None);
+        }
     };
 
-    let mut rules = settings.app_rules.clone();
-    rules.sort_by(|a, b| b.priority.cmp(&a.priority));
+    if !settings.app_rules.is_empty() {
+        let mut rules = settings.app_rules.clone();
+        rules.sort_by(|a, b| b.priority.cmp(&a.priority));
 
-    for rule in rules.iter().filter(|r| r.enabled) {
-        if rule_matches(&window_info, rule) {
-            let _ = app.emit(
-                "app-context-matched",
-                AppContextEvent {
-                    app_name: window_info.app_name.clone(),
-                    rule_name: rule.name.clone(),
-                },
-            );
-            return Ok(Some(rule.prompt_template.clone()));
+        for rule in rules.iter().filter(|r| r.enabled) {
+            let url_match = window_info.url.as_ref()
+                .map(|url| matches_url_pattern(url, rule))
+                .unwrap_or(false);
+            
+            if rule_matches(&window_info, rule) || url_match {
+                let _ = app.emit(
+                    "app-context-matched",
+                    AppContextEvent {
+                        app_name: window_info.app_name.clone(),
+                        rule_name: rule.name.clone(),
+                    },
+                );
+                info!("Custom rule matched: '{}'", rule.name);
+                return Ok(Some(rule.prompt_template.clone()));
+            }
         }
     }
 
-    Ok(Some(default_prompt))
+    if let Some((rule_name, prompt, category)) = get_automatic_detection_prompt(&window_info) {
+        let _ = app.emit(
+            "app-context-matched",
+            AppContextEvent {
+                app_name: window_info.app_name.clone(),
+                rule_name: rule_name.clone(),
+            },
+        );
+        info!("Automatic detection matched: '{}' (category: {:?})", rule_name, category);
+        return Ok(Some(prompt));
+    }
+
+    Ok(None)
 }
 
 fn get_command_mode_prompt(app: &AppHandle) -> Option<(String, String)> {
     let settings = load_llm_connect_settings(app);
 
-    if !settings.app_detection_enabled {
-        debug!("App detection is disabled for command mode");
-        return None;
-    }
-
     let window_info = match crate::audio::audio::take_captured_window_info() {
         Some(info) => {
             info!(
-                "Command mode - Using captured window: app='{}', title='{}', process='{}'",
-                info.app_name, info.window_title, info.process_name
+                "Command mode - Using captured window: app='{}', title='{}', process='{}', url={:?}",
+                info.app_name, info.window_title, info.process_name, info.url
             );
             info
         }
@@ -131,24 +180,42 @@ fn get_command_mode_prompt(app: &AppHandle) -> Option<(String, String)> {
         }
     };
 
-    let mut rules = settings.app_rules.clone();
-    rules.sort_by(|a, b| b.priority.cmp(&a.priority));
+    if !settings.app_rules.is_empty() {
+        let mut rules = settings.app_rules.clone();
+        rules.sort_by(|a, b| b.priority.cmp(&a.priority));
 
-    for rule in rules.iter().filter(|r| r.enabled) {
-        if rule_matches(&window_info, rule) {
-            info!("Command mode - Matched app rule: '{}'", rule.name);
-            let _ = app.emit(
-                "app-context-matched",
-                AppContextEvent {
-                    app_name: window_info.app_name.clone(),
-                    rule_name: rule.name.clone(),
-                },
-            );
-            return Some((rule.name.clone(), rule.prompt_template.clone()));
+        for rule in rules.iter().filter(|r| r.enabled) {
+            let url_match = window_info.url.as_ref()
+                .map(|url| matches_url_pattern(url, rule))
+                .unwrap_or(false);
+            
+            if rule_matches(&window_info, rule) || url_match {
+                info!("Command mode - Custom rule matched: '{}'", rule.name);
+                let _ = app.emit(
+                    "app-context-matched",
+                    AppContextEvent {
+                        app_name: window_info.app_name.clone(),
+                        rule_name: rule.name.clone(),
+                    },
+                );
+                return Some((rule.name.clone(), rule.prompt_template.clone()));
+            }
         }
     }
 
-    debug!("Command mode - No matching app rule found for window: app='{}', title='{}'", 
+    if let Some((rule_name, prompt, category)) = get_automatic_detection_prompt(&window_info) {
+        let _ = app.emit(
+            "app-context-matched",
+            AppContextEvent {
+                app_name: window_info.app_name.clone(),
+                rule_name: rule_name.clone(),
+            },
+        );
+        info!("Command mode - Automatic detection matched: '{}' (category: {:?})", rule_name, category);
+        return Some((rule_name, prompt));
+    }
+
+    debug!("Command mode - No matching rule found for window: app='{}', title='{}'", 
            window_info.app_name, window_info.window_title);
     None
 }
@@ -190,7 +257,7 @@ async fn transcribe_and_reformat(app: &AppHandle, audio_path: &Path) -> Result<S
 
     let combined_prompt = match get_command_mode_prompt(app) {
         Some((rule_name, prompt_template)) => {
-            info!("Command mode - Using app rule '{}' for transcription + reformulation in ONE API call", rule_name);
+            info!("Command mode - Using rule '{}' for transcription + reformulation in ONE API call", rule_name);
             
             let context_section = match &selected_text {
                 Some(text) => format!("\n\n<selected_text>\n{}\n</selected_text>", text),
@@ -210,7 +277,7 @@ async fn transcribe_and_reformat(app: &AppHandle, audio_path: &Path) -> Result<S
             Some(full_prompt)
         }
         None => {
-            info!("Command mode - No app rule matched, using standard transcription");
+            info!("Command mode - No rule matched, using standard transcription");
             None
         }
     };
