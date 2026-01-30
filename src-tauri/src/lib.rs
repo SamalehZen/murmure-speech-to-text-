@@ -209,7 +209,16 @@ pub fn run() {
             get_formatting_settings,
             set_formatting_settings,
             get_log_level,
-            set_log_level
+            set_log_level,
+            get_app_dictionaries,
+            set_app_dictionaries,
+            add_app_dictionary_term,
+            remove_app_dictionary_term,
+            get_dictionary_for_app,
+            test_app_dictionary_term,
+            set_app_dictionary_override,
+            export_app_dictionaries,
+            import_app_dictionaries
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

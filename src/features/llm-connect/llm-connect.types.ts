@@ -36,6 +36,25 @@ export interface ToneConfig {
     apps: string[];
 }
 
+export interface DictionaryTerm {
+    spoken: string[];
+    written: string;
+    context?: string;
+}
+
+export interface AppDictionary {
+    id: string;
+    name: string;
+    appPatterns: string[];
+    terms: DictionaryTerm[];
+    enabled: boolean;
+}
+
+export interface AppDictionarySettings {
+    dictionaries: AppDictionary[];
+    appDictionaryOverrides: Record<string, string>;
+}
+
 export interface LLMConnectSettings {
     url: string;
     model: string;

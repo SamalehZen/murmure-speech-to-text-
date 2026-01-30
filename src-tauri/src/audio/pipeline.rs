@@ -1,6 +1,9 @@
 use crate::app_context;
 use crate::audio::types::{AudioState, RecordingMode};
-use crate::dictionary::{fix_transcription_with_dictionary, get_cc_rules_path, Dictionary};
+use crate::dictionary::{
+    fix_transcription_with_dictionary, get_app_specific_dictionary, get_cc_rules_path,
+    merge_dictionaries, Dictionary,
+};
 use crate::formatting_rules;
 use crate::history;
 use crate::llm::helpers::load_llm_connect_settings;
@@ -328,11 +331,13 @@ pub async fn transcribe_audio(app: &AppHandle, audio_path: &Path) -> Result<Stri
 
 fn apply_dictionary_and_rules(app: &AppHandle, text: String) -> Result<String> {
     let cc_rules_path = get_cc_rules_path(app).context("Failed to get CC rules path")?;
-    let dictionary = app.state::<Dictionary>().get();
+    let global_dictionary = app.state::<Dictionary>().get();
+    let app_specific_dictionary = get_app_specific_dictionary(app);
+    let merged_dictionary = merge_dictionaries(global_dictionary, app_specific_dictionary);
 
     Ok(fix_transcription_with_dictionary(
         text,
-        dictionary,
+        merged_dictionary,
         cc_rules_path,
     ))
 }
