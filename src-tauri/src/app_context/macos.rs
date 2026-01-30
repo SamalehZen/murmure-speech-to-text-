@@ -54,17 +54,15 @@ pub fn get_active_window() -> Result<ActiveWindowInfo, String> {
 }
 
 fn get_process_path(app_name: &str) -> String {
-    let script = format!(
-        r#"
+    let script = r#"
         tell application "System Events"
             set frontApp to first application process whose frontmost is true
             return POSIX path of (file of frontApp as text)
         end tell
-        "#
-    );
+        "#;
 
     Command::new("osascript")
-        .args(["-e", &script])
+        .args(["-e", script])
         .output()
         .ok()
         .and_then(|o| {
@@ -184,19 +182,6 @@ fn get_brave_url() -> Option<String> {
 }
 
 fn get_firefox_url() -> Option<String> {
-    let script = r#"
-        tell application "System Events"
-            tell process "Firefox"
-                set frontmost to true
-                keystroke "l" using command down
-                delay 0.1
-                keystroke "c" using command down
-                delay 0.1
-                keystroke "w" using command down
-            end tell
-        end tell
-        return the clipboard
-    "#;
     None
 }
 

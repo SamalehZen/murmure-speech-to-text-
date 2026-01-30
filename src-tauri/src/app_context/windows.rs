@@ -12,7 +12,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 pub fn get_active_window() -> Result<ActiveWindowInfo, String> {
     unsafe {
         let hwnd = GetForegroundWindow();
-        if hwnd.is_null() {
+        if hwnd == 0 {
             return Err("No foreground window".to_string());
         }
 
@@ -36,7 +36,7 @@ pub fn get_active_window() -> Result<ActiveWindowInfo, String> {
         };
 
         let url = if is_browser(&process_name) {
-            get_browser_url(&process_name, hwnd)
+            get_browser_url()
         } else {
             None
         };
@@ -54,7 +54,7 @@ pub fn get_active_window() -> Result<ActiveWindowInfo, String> {
 
 unsafe fn get_process_info(process_id: u32) -> (String, String, Option<String>) {
     let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, process_id);
-    if handle.is_null() {
+    if handle == 0 {
         return (String::new(), String::new(), None);
     }
 
@@ -95,7 +95,7 @@ fn is_browser(process_name: &str) -> bool {
     browser_processes.iter().any(|b| name_lower.contains(b) || name_lower == *b)
 }
 
-fn get_browser_url(_process_name: &str, _hwnd: *mut std::ffi::c_void) -> Option<String> {
+fn get_browser_url() -> Option<String> {
     get_browser_url_via_uiautomation()
 }
 
