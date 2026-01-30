@@ -16,6 +16,7 @@ mod shortcuts;
 mod stats;
 mod style_learning;
 mod utils;
+mod voice_commands;
 
 use crate::shortcuts::init_shortcuts;
 use audio::types::AudioState;
@@ -243,7 +244,16 @@ pub fn run() {
             remove_excluded_app,
             get_style_preview,
             analyze_sample_text,
-            record_style_sample
+            record_style_sample,
+            get_voice_command_settings,
+            set_voice_command_settings,
+            toggle_voice_commands,
+            add_voice_command,
+            update_voice_command,
+            delete_voice_command,
+            set_voice_command_signature,
+            preview_voice_commands,
+            reset_voice_commands_to_default
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
