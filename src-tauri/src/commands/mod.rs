@@ -10,6 +10,9 @@ pub mod record_mode;
 pub mod settings;
 pub mod shortcuts;
 pub mod stats;
+pub mod style_learning;
+pub mod templates;
+pub mod voice_commands;
 
 pub use clipboard::*;
 pub use dictionary::*;
@@ -23,3 +26,6 @@ pub use record_mode::*;
 pub use settings::*;
 pub use shortcuts::*;
 pub use stats::*;
+pub use style_learning::*;
+pub use templates::*;
+pub use voice_commands::*;

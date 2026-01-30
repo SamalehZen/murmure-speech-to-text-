@@ -14,7 +14,9 @@ mod overlay;
 mod settings;
 mod shortcuts;
 mod stats;
+mod style_learning;
 mod utils;
+mod voice_commands;
 
 use crate::shortcuts::init_shortcuts;
 use audio::types::AudioState;
@@ -196,6 +198,12 @@ pub fn run() {
             save_app_rules,
             toggle_app_detection,
             test_app_rule,
+            find_matching_rule,
+            get_tones,
+            set_tones,
+            set_app_tone_override,
+            set_default_tone,
+            get_tone_for_app,
             get_sound_enabled,
             set_sound_enabled,
             get_record_mode,
@@ -203,7 +211,49 @@ pub fn run() {
             get_formatting_settings,
             set_formatting_settings,
             get_log_level,
-            set_log_level
+            set_log_level,
+            get_app_dictionaries,
+            set_app_dictionaries,
+            add_app_dictionary_term,
+            remove_app_dictionary_term,
+            get_dictionary_for_app,
+            test_app_dictionary_term,
+            set_app_dictionary_override,
+            export_app_dictionaries,
+            import_app_dictionaries,
+            get_templates,
+            get_template_settings,
+            set_templates,
+            add_template,
+            update_template,
+            delete_template,
+            get_templates_for_app,
+            toggle_templates,
+            set_template_trigger_prefix,
+            export_templates,
+            import_templates,
+            reset_templates_to_default,
+            get_style_learning_settings,
+            set_style_learning_settings,
+            toggle_style_learning,
+            get_style_profile,
+            reset_style_profile,
+            reset_all_style_profiles,
+            toggle_app_style_learning,
+            add_excluded_app,
+            remove_excluded_app,
+            get_style_preview,
+            analyze_sample_text,
+            record_style_sample,
+            get_voice_command_settings,
+            set_voice_command_settings,
+            toggle_voice_commands,
+            add_voice_command,
+            update_voice_command,
+            delete_voice_command,
+            set_voice_command_signature,
+            preview_voice_commands,
+            reset_voice_commands_to_default
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

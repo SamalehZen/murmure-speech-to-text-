@@ -12,6 +12,7 @@ export interface ActiveWindowInfo {
     app_name: string;
     window_title: string;
     process_name: string;
+    detected_app?: string;
 }
 
 export type AppMatchType = 'app_name_contains' | 'window_title_contains' | 'process_name_equals' | 'window_title_regex';
@@ -24,6 +25,79 @@ export interface AppPromptRule {
     prompt_template: string;
     priority: number;
     enabled: boolean;
+}
+
+export interface ToneConfig {
+    id: string;
+    name: string;
+    description: string;
+    prompt_modifier: string;
+    icon: string;
+    apps: string[];
+}
+
+export interface DictionaryTerm {
+    spoken: string[];
+    written: string;
+    context?: string;
+}
+
+export interface AppDictionary {
+    id: string;
+    name: string;
+    appPatterns: string[];
+    terms: DictionaryTerm[];
+    enabled: boolean;
+}
+
+export interface AppDictionarySettings {
+    dictionaries: AppDictionary[];
+    appDictionaryOverrides: Record<string, string>;
+}
+
+export interface TextTemplate {
+    id: string;
+    name: string;
+    triggerWords: string[];
+    content: string;
+    appPatterns: string[];
+    category: string;
+    language: string;
+}
+
+export interface TemplateSettings {
+    templates: TextTemplate[];
+    enabled: boolean;
+    triggerPrefix?: string;
+}
+
+export interface TemplateAppliedEvent {
+    templateId: string;
+    templateName: string;
+    detectedApp?: string;
+}
+
+export interface LLMConnectSettings {
+    url: string;
+    model: string;
+    prompt: string;
+    modes: LLMMode[];
+    active_mode_index: number;
+    onboarding_completed: boolean;
+    active_provider: LLMProvider;
+    providers: Record<string, ProviderConfig>;
+    app_detection_enabled: boolean;
+    app_rules: AppPromptRule[];
+    tones: ToneConfig[];
+    app_tone_overrides: Record<string, string>;
+    default_tone_id?: string;
+}
+
+export interface LLMMode {
+    name: string;
+    prompt: string;
+    model: string;
+    shortcut: string;
 }
 
 export const PROVIDER_LABELS: Record<LLMProvider, string> = {
@@ -135,3 +209,37 @@ Reformule en message conversationnel approprié:
         enabled: true,
     },
 ];
+
+export type EmojiUsage = 'never' | 'rarely' | 'sometimes' | 'often';
+export type Formality = 'formal' | 'neutral' | 'casual';
+export type MessageLength = 'short' | 'medium' | 'long';
+export type PunctuationStyle = 'minimal' | 'standard' | 'expressive';
+
+export interface LearnedPatterns {
+    greetings: string[];
+    closings: string[];
+    commonPhrases: string[];
+    emojiUsage: EmojiUsage;
+    formality: Formality;
+    averageLength: MessageLength;
+    punctuationStyle: PunctuationStyle;
+    usesAbbreviations: boolean;
+    usesTutoring: boolean;
+}
+
+export interface StyleProfile {
+    appName: string;
+    patterns: LearnedPatterns;
+    examples: string[];
+    sampleCount: number;
+    lastUpdated: string;
+    enabled: boolean;
+}
+
+export interface StyleLearningSettings {
+    enabled: boolean;
+    profiles: Record<string, StyleProfile>;
+    minSamplesForLearning: number;
+    maxExamplesStored: number;
+    excludedApps: string[];
+}

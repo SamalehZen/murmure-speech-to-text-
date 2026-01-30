@@ -1,6 +1,7 @@
 import { useTranslation } from '@/i18n';
 import { useState, useEffect } from 'react';
 import { useLLMConnect, LLMMode } from './hooks/use-llm-connect';
+import { useTemplates } from './hooks/use-templates';
 import { toast } from 'react-toastify';
 import { getPresetLabel, getPromptByPreset } from './llm-connect.helpers';
 import { LLMConnectOnboarding } from './onboarding/llm-connect-onboarding';
@@ -11,6 +12,11 @@ import { LLMAdvancedSettings } from './components/llm-advanced-settings';
 import { ProviderSelector } from './components/provider-selector';
 import { ApiKeyConfig } from './components/api-key-config';
 import { AppDetectionSettings } from './components/app-detection-settings';
+import { ToneSettings } from './components/tone-settings';
+import { StyleLearningSettings } from './components/style-learning-settings';
+import { AppDictionarySettingsComponent } from './components/app-dictionary-settings';
+import { TemplateSettings } from './components/template-settings';
+import { VoiceCommandSettings } from './components/voice-command-settings';
 import { SettingsUI } from '@/components/settings-ui';
 import { LLMProvider, ProviderConfig } from './llm-connect.types';
 
@@ -39,7 +45,19 @@ export const LLMConnect = () => {
         saveAppRules,
         refreshActiveWindow,
         testAppRule,
+        tones,
+        appToneOverrides,
+        defaultToneId,
+        saveTones,
+        setAppToneOverride,
+        setDefaultTone,
     } = useLLMConnect();
+
+    const {
+        settings: templateSettings,
+        isLoaded: isTemplatesLoaded,
+        refreshSettings: refreshTemplateSettings,
+    } = useTemplates();
 
     const [showModelSelector, setShowModelSelector] = useState(false);
 
@@ -264,6 +282,8 @@ export const LLMConnect = () => {
                     )}
                 </SettingsUI.Container>
 
+                <VoiceCommandSettings />
+
                 <AppDetectionSettings
                     enabled={appDetectionEnabled}
                     rules={appRules}
@@ -273,6 +293,33 @@ export const LLMConnect = () => {
                     onRefreshWindow={refreshActiveWindow}
                     onTestRule={testAppRule}
                 />
+
+                {appDetectionEnabled && (
+                    <>
+                        <ToneSettings
+                            tones={tones}
+                            appToneOverrides={appToneOverrides}
+                            defaultToneId={defaultToneId}
+                            onTonesChange={saveTones}
+                            onSetAppToneOverride={setAppToneOverride}
+                            onSetDefaultTone={setDefaultTone}
+                        />
+
+                        <StyleLearningSettings />
+
+                        <AppDictionarySettingsComponent
+                            currentDetectedApp={currentActiveWindow?.detected_app}
+                            onRefreshCurrentApp={refreshActiveWindow}
+                        />
+
+                        {isTemplatesLoaded && (
+                            <TemplateSettings
+                                settings={templateSettings}
+                                onRefresh={refreshTemplateSettings}
+                            />
+                        )}
+                    </>
+                )}
 
                 {activeProvider === 'ollama' && (
                     <>

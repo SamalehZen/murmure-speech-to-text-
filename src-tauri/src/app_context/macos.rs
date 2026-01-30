@@ -29,34 +29,42 @@ pub fn get_active_window() -> Result<ActiveWindowInfo, String> {
     let app_name = parts.first().map(|s| s.to_string()).unwrap_or_default();
     let window_title = parts.get(1).map(|s| s.to_string()).unwrap_or_default();
 
-    let bundle_script = format!(
-        r#"
+    let bundle_script = r#"
         tell application "System Events"
             set frontApp to first application process whose frontmost is true
             return POSIX path of (file of frontApp as text)
         end tell
-        "#
-    );
+    "#;
 
-    let process_name = Command::new("osascript")
-        .args(["-e", &bundle_script])
+    let (process_name, process_path) = Command::new("osascript")
+        .args(["-e", bundle_script])
         .output()
         .ok()
         .and_then(|o| {
             if o.status.success() {
                 let path = String::from_utf8_lossy(&o.stdout).trim().to_string();
-                std::path::Path::new(&path)
+                let name = std::path::Path::new(&path)
                     .file_name()
                     .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_else(|| app_name.clone());
+                Some((name, path))
             } else {
                 None
             }
         })
-        .unwrap_or_else(|| app_name.clone());
+        .unwrap_or_else(|| (app_name.clone(), String::new()));
 
-    Ok(ActiveWindowInfo {
+    let mut info = ActiveWindowInfo {
         app_name,
         window_title,
         process_name,
-    })
+        process_path,
+        window_class: String::new(),
+        browser_url: None,
+        detected_app: None,
+    };
+
+    info.extract_browser_url();
+
+    Ok(info)
 }

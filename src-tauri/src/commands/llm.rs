@@ -1,5 +1,7 @@
 use crate::app_context;
-use crate::llm::{self, AppPromptRule, LLMConnectSettings, LLMProvider, OllamaModel, ProviderConfig};
+use crate::llm::{
+    self, AppPromptRule, LLMConnectSettings, LLMProvider, OllamaModel, ProviderConfig, ToneConfig,
+};
 use tauri::{command, AppHandle, Emitter};
 
 #[command]
@@ -75,6 +77,7 @@ pub fn save_provider_config(
 
 #[command]
 pub fn get_current_active_window() -> Result<app_context::ActiveWindowInfo, String> {
+    app_context::invalidate_window_cache();
     app_context::get_active_window()
 }
 
@@ -98,24 +101,89 @@ pub fn toggle_app_detection(app: AppHandle, enabled: bool) -> Result<(), String>
 
 #[command]
 pub fn test_app_rule(rule: AppPromptRule) -> Result<bool, String> {
+    app_context::invalidate_window_cache();
     let window_info = app_context::get_active_window()?;
+    Ok(app_context::rule_matches(&window_info, &rule))
+}
+
+#[command]
+pub fn find_matching_rule(app: AppHandle) -> Result<Option<String>, String> {
+    app_context::invalidate_window_cache();
+    let window_info = app_context::get_active_window()?;
+    let settings = llm::load_llm_connect_settings(&app);
     
-    let matches = match rule.match_type {
-        llm::AppMatchType::AppNameContains => window_info
-            .app_name
-            .to_lowercase()
-            .contains(&rule.match_pattern.to_lowercase()),
-        llm::AppMatchType::WindowTitleContains => window_info
-            .window_title
-            .to_lowercase()
-            .contains(&rule.match_pattern.to_lowercase()),
-        llm::AppMatchType::ProcessNameEquals => {
-            window_info.process_name.to_lowercase() == rule.match_pattern.to_lowercase()
-        }
-        llm::AppMatchType::WindowTitleRegex => regex::Regex::new(&rule.match_pattern)
-            .map(|r| r.is_match(&window_info.window_title))
-            .unwrap_or(false),
+    match app_context::find_best_matching_rule(&settings.app_rules, &window_info) {
+        Some(rule) => Ok(Some(rule.name.clone())),
+        None => Ok(None),
+    }
+}
+
+#[command]
+pub fn get_tones(app: AppHandle) -> Vec<ToneConfig> {
+    let settings = llm::load_llm_connect_settings(&app);
+    if settings.tones.is_empty() {
+        ToneConfig::default_tones()
+    } else {
+        settings.tones
+    }
+}
+
+#[command]
+pub fn set_tones(app: AppHandle, tones: Vec<ToneConfig>) -> Result<(), String> {
+    let mut settings = llm::load_llm_connect_settings(&app);
+    settings.tones = tones;
+    llm::save_llm_connect_settings(&app, &settings)?;
+    let _ = app.emit("llm-settings-updated", &settings);
+    Ok(())
+}
+
+#[command]
+pub fn set_app_tone_override(
+    app: AppHandle,
+    app_name: String,
+    tone_id: String,
+) -> Result<(), String> {
+    let mut settings = llm::load_llm_connect_settings(&app);
+    if tone_id.is_empty() {
+        settings.app_tone_overrides.remove(&app_name);
+    } else {
+        settings.app_tone_overrides.insert(app_name, tone_id);
+    }
+    llm::save_llm_connect_settings(&app, &settings)?;
+    let _ = app.emit("llm-settings-updated", &settings);
+    Ok(())
+}
+
+#[command]
+pub fn set_default_tone(app: AppHandle, tone_id: Option<String>) -> Result<(), String> {
+    let mut settings = llm::load_llm_connect_settings(&app);
+    settings.default_tone_id = tone_id;
+    llm::save_llm_connect_settings(&app, &settings)?;
+    let _ = app.emit("llm-settings-updated", &settings);
+    Ok(())
+}
+
+#[command]
+pub fn get_tone_for_app(app: AppHandle, detected_app: String) -> Option<ToneConfig> {
+    let settings = llm::load_llm_connect_settings(&app);
+    let tones = if settings.tones.is_empty() {
+        ToneConfig::default_tones()
+    } else {
+        settings.tones.clone()
     };
-    
-    Ok(matches)
+
+    if let Some(tone_id) = settings.app_tone_overrides.get(&detected_app) {
+        return tones.iter().find(|t| &t.id == tone_id).cloned();
+    }
+
+    for tone in &tones {
+        if tone.apps.contains(&detected_app) {
+            return Some(tone.clone());
+        }
+    }
+
+    settings
+        .default_tone_id
+        .as_ref()
+        .and_then(|id| tones.iter().find(|t| &t.id == id).cloned())
 }
