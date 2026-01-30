@@ -12,7 +12,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 pub fn get_active_window() -> Result<ActiveWindowInfo, String> {
     unsafe {
         let hwnd = GetForegroundWindow();
-        if hwnd == 0 {
+        if hwnd.is_null() {
             return Err("No foreground window".to_string());
         }
 
@@ -54,7 +54,7 @@ pub fn get_active_window() -> Result<ActiveWindowInfo, String> {
 
 unsafe fn get_process_info(process_id: u32) -> (String, String, Option<String>) {
     let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, process_id);
-    if handle == 0 {
+    if handle.is_null() {
         return (String::new(), String::new(), None);
     }
 
@@ -102,7 +102,6 @@ fn get_browser_url() -> Option<String> {
 fn get_browser_url_via_uiautomation() -> Option<String> {
     use windows::Win32::UI::Accessibility::*;
     use windows::Win32::System::Com::*;
-    use windows::core::*;
 
     unsafe {
         let _ = CoInitializeEx(None, COINIT_MULTITHREADED);

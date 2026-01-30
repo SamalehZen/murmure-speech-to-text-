@@ -222,6 +222,9 @@ fn get_command_mode_prompt(app: &AppHandle) -> Option<(String, String)> {
 
 async fn transcribe_and_reformat(app: &AppHandle, audio_path: &Path) -> Result<String> {
     let _ = app.emit("llm-processing-start", ());
+    if let Some(overlay) = app.get_webview_window("recording_overlay") {
+        let _ = overlay.emit("llm-processing-start", ());
+    }
 
     let audio_bytes = std::fs::read(audio_path)
         .context("Failed to read audio file")?;
@@ -235,6 +238,9 @@ async fn transcribe_and_reformat(app: &AppHandle, audio_path: &Path) -> Result<S
 
     if google_config.api_key.is_none() {
         let _ = app.emit("llm-processing-end", ());
+        if let Some(overlay) = app.get_webview_window("recording_overlay") {
+            let _ = overlay.emit("llm-processing-end", ());
+        }
         return Err(anyhow::anyhow!(
             "Google API key not configured. Go to Settings > LLM Connect to configure."
         ));
@@ -285,12 +291,18 @@ async fn transcribe_and_reformat(app: &AppHandle, audio_path: &Path) -> Result<S
     let result = providers::google::transcribe_audio(&google_config, audio_bytes, combined_prompt).await;
 
     let _ = app.emit("llm-processing-end", ());
+    if let Some(overlay) = app.get_webview_window("recording_overlay") {
+        let _ = overlay.emit("llm-processing-end", ());
+    }
 
     result.map_err(|e| anyhow::anyhow!("{}", e))
 }
 
 pub async fn transcribe_audio(app: &AppHandle, audio_path: &Path) -> Result<String> {
     let _ = app.emit("llm-processing-start", ());
+    if let Some(overlay) = app.get_webview_window("recording_overlay") {
+        let _ = overlay.emit("llm-processing-start", ());
+    }
 
     let audio_bytes = std::fs::read(audio_path)
         .context("Failed to read audio file")?;
@@ -304,6 +316,9 @@ pub async fn transcribe_audio(app: &AppHandle, audio_path: &Path) -> Result<Stri
 
     if google_config.api_key.is_none() {
         let _ = app.emit("llm-processing-end", ());
+        if let Some(overlay) = app.get_webview_window("recording_overlay") {
+            let _ = overlay.emit("llm-processing-end", ());
+        }
         return Err(anyhow::anyhow!(
             "Google API key not configured. Go to Settings > LLM Connect to configure."
         ));
@@ -315,6 +330,9 @@ pub async fn transcribe_audio(app: &AppHandle, audio_path: &Path) -> Result<Stri
     let result = providers::google::transcribe_audio(&google_config, audio_bytes, effective_prompt).await;
 
     let _ = app.emit("llm-processing-end", ());
+    if let Some(overlay) = app.get_webview_window("recording_overlay") {
+        let _ = overlay.emit("llm-processing-end", ());
+    }
 
     result.map_err(|e| anyhow::anyhow!("{}", e))
 }
