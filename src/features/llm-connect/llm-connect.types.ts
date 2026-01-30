@@ -12,9 +12,12 @@ export interface ActiveWindowInfo {
     app_name: string;
     window_title: string;
     process_name: string;
+    bundle_id?: string;
+    url?: string;
+    exe_path?: string;
 }
 
-export type AppMatchType = 'app_name_contains' | 'window_title_contains' | 'process_name_equals' | 'window_title_regex';
+export type AppMatchType = 'app_name_contains' | 'window_title_contains' | 'process_name_equals' | 'window_title_regex' | 'url_contains' | 'bundle_id_equals';
 
 export interface AppPromptRule {
     id: string;

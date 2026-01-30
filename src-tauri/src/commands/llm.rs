@@ -115,6 +115,16 @@ pub fn test_app_rule(rule: AppPromptRule) -> Result<bool, String> {
         llm::AppMatchType::WindowTitleRegex => regex::Regex::new(&rule.match_pattern)
             .map(|r| r.is_match(&window_info.window_title))
             .unwrap_or(false),
+        llm::AppMatchType::UrlContains => window_info
+            .url
+            .as_ref()
+            .map(|url| url.to_lowercase().contains(&rule.match_pattern.to_lowercase()))
+            .unwrap_or(false),
+        llm::AppMatchType::BundleIdEquals => window_info
+            .bundle_id
+            .as_ref()
+            .map(|bid| bid.to_lowercase() == rule.match_pattern.to_lowercase())
+            .unwrap_or(false),
     };
     
     Ok(matches)

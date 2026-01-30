@@ -1,6 +1,10 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+fn default_true() -> bool {
+    true
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "lowercase")]
 pub enum LLMProvider {
@@ -45,6 +49,8 @@ pub enum AppMatchType {
     WindowTitleContains,
     ProcessNameEquals,
     WindowTitleRegex,
+    UrlContains,
+    BundleIdEquals,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -73,7 +79,7 @@ pub struct LLMConnectSettings {
     pub active_provider: LLMProvider,
     #[serde(default)]
     pub providers: HashMap<String, ProviderConfig>,
-    #[serde(default)]
+    #[serde(default = "default_true")]
     pub app_detection_enabled: bool,
     #[serde(default)]
     pub app_rules: Vec<AppPromptRule>,
@@ -154,7 +160,7 @@ impl Default for LLMConnectSettings {
             onboarding_completed: false,
             active_provider: LLMProvider::Ollama,
             providers,
-            app_detection_enabled: false,
+            app_detection_enabled: true,
             app_rules: Vec::new(),
         }
     }

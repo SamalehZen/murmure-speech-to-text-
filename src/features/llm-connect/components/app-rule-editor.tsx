@@ -34,6 +34,8 @@ const MATCH_TYPE_LABELS: Record<AppMatchType, string> = {
     window_title_contains: 'Window title contains',
     process_name_equals: 'Process name equals',
     window_title_regex: 'Window title regex',
+    url_contains: 'URL contains',
+    bundle_id_equals: 'Bundle ID equals',
 };
 
 export const AppRuleEditor = ({

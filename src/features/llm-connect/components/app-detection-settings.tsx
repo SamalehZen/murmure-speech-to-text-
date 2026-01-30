@@ -86,7 +86,7 @@ export const AppDetectionSettings = ({
                 <SettingsUI.Description>
                     <Typography.Title>{t('App Detection')}</Typography.Title>
                     <Typography.Paragraph>
-                        {t('Automatically adapt prompts based on the active application')}
+                        {t('Automatically adapt prompts based on the active application. Custom rules override automatic detection.')}
                     </Typography.Paragraph>
                 </SettingsUI.Description>
                 <Switch checked={enabled} onCheckedChange={onToggle} />
@@ -96,16 +96,28 @@ export const AppDetectionSettings = ({
                 <>
                     <SettingsUI.Separator />
                     <SettingsUI.Item>
-                        <div className="flex items-center gap-2 text-sm text-zinc-400">
-                            <Monitor className="h-4 w-4" />
-                            <span>{t('Current window')}:</span>
-                            <span className="text-zinc-200 font-medium">
-                                {currentWindow.app_name || currentWindow.process_name}
-                            </span>
-                            {currentWindow.window_title && (
-                                <span className="text-zinc-500 truncate max-w-[200px]">
-                                    - {currentWindow.window_title}
+                        <div className="flex flex-col gap-1 text-sm">
+                            <div className="flex items-center gap-2 text-zinc-400">
+                                <Monitor className="h-4 w-4" />
+                                <span>{t('Current window')}:</span>
+                                <span className="text-zinc-200 font-medium">
+                                    {currentWindow.app_name || currentWindow.process_name}
                                 </span>
+                            </div>
+                            {currentWindow.window_title && (
+                                <div className="text-zinc-500 truncate ml-6">
+                                    {currentWindow.window_title}
+                                </div>
+                            )}
+                            {currentWindow.url && (
+                                <div className="text-emerald-500/80 truncate ml-6 text-xs">
+                                    {currentWindow.url}
+                                </div>
+                            )}
+                            {currentWindow.bundle_id && (
+                                <div className="text-blue-500/80 truncate ml-6 text-xs">
+                                    {currentWindow.bundle_id}
+                                </div>
                             )}
                         </div>
                     </SettingsUI.Item>
