@@ -198,6 +198,8 @@ pub fn run() {
             get_current_mic_id,
             set_current_mic_id,
             get_mic_list,
+            is_initial_setup_completed,
+            complete_initial_setup,
             get_onboarding_state,
             set_onboarding_used_home_shortcut,
             set_onboarding_transcribed_outside_app,

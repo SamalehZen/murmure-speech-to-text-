@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct OnboardingState {
     #[serde(default)]
+    pub initial_setup_completed: bool,
+    #[serde(default)]
     pub used_home_shortcut: bool,
     #[serde(default)]
     pub transcribed_outside_app: bool,
