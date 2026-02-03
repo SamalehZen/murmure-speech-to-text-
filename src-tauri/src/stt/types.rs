@@ -68,7 +68,7 @@ impl Default for STTSettings {
                 provider: STTProvider::Google,
                 api_key: None,
                 base_url: "https://generativelanguage.googleapis.com/v1beta".to_string(),
-                model: "gemini-2.0-flash".to_string(),
+                model: "gemini-2.5-flash-lite".to_string(),
                 available_models: Vec::new(),
             },
         );
@@ -108,6 +108,14 @@ pub struct OpenAIModelInfo {
 #[derive(Debug, Serialize)]
 pub struct GoogleAudioRequest {
     pub contents: Vec<GoogleAudioContent>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub generation_config: Option<GoogleGenerationConfig>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct GoogleGenerationConfig {
+    pub temperature: f32,
+    pub max_output_tokens: u32,
 }
 
 #[derive(Debug, Serialize)]

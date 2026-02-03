@@ -19,8 +19,8 @@ export const DEFAULT_STT_PROVIDERS: Record<string, STTProviderConfig> = {
         provider: 'google',
         api_key: undefined,
         base_url: STT_PROVIDER_BASE_URLS.google,
-        model: 'gemini-2.0-flash',
-        available_models: ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'],
+        model: 'gemini-2.5-flash-lite',
+        available_models: ['gemini-2.5-flash-lite', 'gemini-2.0-flash-lite', 'gemini-2.0-flash', 'gemini-1.5-flash'],
     },
     groq: {
         provider: 'groq',
