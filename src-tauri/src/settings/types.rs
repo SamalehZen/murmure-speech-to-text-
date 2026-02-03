@@ -1,5 +1,44 @@
 use serde::{Deserialize, Serialize};
 
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum SttMode {
+    #[default]
+    Offline,
+    Cloud,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+pub enum CloudSttProvider {
+    #[default]
+    #[serde(rename = "openai")]
+    OpenAI,
+    #[serde(rename = "groq")]
+    Groq,
+    #[serde(rename = "google")]
+    Google,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+pub struct CloudSttConfig {
+    #[serde(default)]
+    pub provider: CloudSttProvider,
+    #[serde(default)]
+    pub api_key: String,
+    #[serde(default)]
+    pub model: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+pub struct InitialSetupState {
+    #[serde(default)]
+    pub completed: bool,
+    #[serde(default)]
+    pub stt_mode: SttMode,
+    #[serde(default)]
+    pub cloud_stt_config: CloudSttConfig,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct OnboardingState {
     #[serde(default)]
@@ -39,6 +78,8 @@ pub struct AppSettings {
     pub sound_enabled: bool,
     #[serde(default)]
     pub onboarding: OnboardingState,
+    #[serde(default)]
+    pub initial_setup: InitialSetupState,
     pub mic_id: Option<String>, // Optional microphone device ID
     pub log_level: String,      // "info" | "debug" | "trace" | "warn" | "error"
 }
@@ -65,6 +106,7 @@ impl Default for AppSettings {
             language: "default".to_string(),
             sound_enabled: true,
             onboarding: OnboardingState::default(),
+            initial_setup: InitialSetupState::default(),
             mic_id: None,
             log_level: "info".to_string(),
         }
