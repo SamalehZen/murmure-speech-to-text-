@@ -1,13 +1,25 @@
 use crate::stt::types::{
-    GoogleAudioContent, GoogleAudioPart, GoogleAudioRequest, GoogleAudioResponse, GoogleInlineData,
-    GoogleModelsResponse, STTProviderConfig,
+    GoogleAudioContent, GoogleAudioPart, GoogleAudioRequest, GoogleAudioResponse,
+    GoogleGenerationConfig, GoogleInlineData, GoogleModelsResponse, STTProviderConfig,
 };
 use base64::{engine::general_purpose::STANDARD, Engine};
+use once_cell::sync::Lazy;
 use std::path::Path;
+use std::time::Duration;
+
+static HTTP_CLIENT: Lazy<reqwest::Client> = Lazy::new(|| {
+    reqwest::Client::builder()
+        .pool_max_idle_per_host(2)
+        .pool_idle_timeout(Duration::from_secs(90))
+        .tcp_keepalive(Duration::from_secs(60))
+        .connect_timeout(Duration::from_secs(10))
+        .timeout(Duration::from_secs(30))
+        .build()
+        .expect("Failed to build HTTP client")
+});
 
 pub async fn transcribe(config: &STTProviderConfig, audio_path: &Path) -> Result<String, String> {
     let api_key = config.api_key.as_ref().ok_or("API key not configured")?;
-    let client = reqwest::Client::new();
 
     let file_bytes =
         std::fs::read(audio_path).map_err(|e| format!("Failed to read audio file: {}", e))?;
@@ -18,7 +30,7 @@ pub async fn transcribe(config: &STTProviderConfig, audio_path: &Path) -> Result
         contents: vec![GoogleAudioContent {
             parts: vec![
                 GoogleAudioPart::Text {
-                    text: "Transcribe this audio. Return only the transcription text without any additional commentary or formatting.".to_string(),
+                    text: "Transcribe:".to_string(),
                 },
                 GoogleAudioPart::InlineData {
                     inline_data: GoogleInlineData {
@@ -28,6 +40,10 @@ pub async fn transcribe(config: &STTProviderConfig, audio_path: &Path) -> Result
                 },
             ],
         }],
+        generation_config: Some(GoogleGenerationConfig {
+            temperature: 0.0,
+            max_output_tokens: 2048,
+        }),
     };
 
     let url = format!(
@@ -37,7 +53,7 @@ pub async fn transcribe(config: &STTProviderConfig, audio_path: &Path) -> Result
         api_key
     );
 
-    let response = client
+    let response = HTTP_CLIENT
         .post(&url)
         .header("Content-Type", "application/json")
         .json(&request_body)
@@ -66,14 +82,13 @@ pub async fn transcribe(config: &STTProviderConfig, audio_path: &Path) -> Result
 
 pub async fn list_models(config: &STTProviderConfig) -> Result<Vec<String>, String> {
     let api_key = config.api_key.as_ref().ok_or("API key not configured")?;
-    let client = reqwest::Client::new();
     let url = format!(
         "{}/models?key={}",
         config.base_url.trim_end_matches('/'),
         api_key
     );
 
-    let response = client
+    let response = HTTP_CLIENT
         .get(&url)
         .send()
         .await
@@ -100,14 +115,13 @@ pub async fn list_models(config: &STTProviderConfig) -> Result<Vec<String>, Stri
 
 pub async fn test_connection(config: &STTProviderConfig) -> Result<bool, String> {
     let api_key = config.api_key.as_ref().ok_or("API key not configured")?;
-    let client = reqwest::Client::new();
     let url = format!(
         "{}/models?key={}",
         config.base_url.trim_end_matches('/'),
         api_key
     );
 
-    let response = client
+    let response = HTTP_CLIENT
         .get(&url)
         .send()
         .await
