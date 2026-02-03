@@ -150,6 +150,10 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             is_model_available,
             get_model_path,
+            is_offline_model_available,
+            download_offline_model,
+            delete_offline_model,
+            get_offline_model_size,
             get_recent_transcriptions,
             clear_history,
             get_record_shortcut,
