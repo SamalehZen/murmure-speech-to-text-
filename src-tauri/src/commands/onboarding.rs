@@ -2,6 +2,22 @@ use crate::settings::{self, OnboardingState};
 use tauri::{command, AppHandle};
 
 #[command]
+pub fn is_initial_setup_completed(app: AppHandle) -> bool {
+    let s = settings::load_settings(&app);
+    s.initial_setup_completed
+}
+
+#[command]
+pub fn complete_initial_setup(app: AppHandle) -> Result<(), String> {
+    let mut s = settings::load_settings(&app);
+    if !s.initial_setup_completed {
+        s.initial_setup_completed = true;
+        settings::save_settings(&app, &s)?;
+    }
+    Ok(())
+}
+
+#[command]
 pub fn get_onboarding_state(app: AppHandle) -> Result<OnboardingState, String> {
     let s = settings::load_settings(&app);
     Ok(s.onboarding)

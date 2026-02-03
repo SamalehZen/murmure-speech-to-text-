@@ -15,6 +15,8 @@ pub struct OnboardingState {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(default)]
 pub struct AppSettings {
+    #[serde(default)]
+    pub initial_setup_completed: bool,
     pub record_shortcut: String,
     pub last_transcript_shortcut: String,
     pub llm_record_shortcut: String,
@@ -46,6 +48,7 @@ pub struct AppSettings {
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
+            initial_setup_completed: false,
             record_shortcut: "ctrl+space".to_string(),
             last_transcript_shortcut: "ctrl+shift+space".to_string(),
             llm_record_shortcut: "ctrl+alt+space".to_string(),
