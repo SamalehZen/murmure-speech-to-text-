@@ -12,6 +12,7 @@ import { CustomDictionary } from './features/settings/custom-dictionary/custom-d
 import { FormattingRules } from './features/settings/formatting-rules/formatting-rules';
 import { System } from './features/settings/system/system';
 import { LLMConnect } from './features/llm-connect/llm-connect';
+import { STTProviders } from './features/stt-providers/stt-providers';
 
 const rootRoute = createRootRoute({
     component: () => <Layout />,
@@ -53,6 +54,12 @@ const settingsSystemRoute = createRoute({
     component: System,
 });
 
+const settingsSTTProvidersRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/settings/stt-providers',
+    component: STTProviders,
+});
+
 const settingsIndexRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: '/settings',
@@ -76,6 +83,7 @@ const routeTree = rootRoute.addChildren([
     settingsIndexRoute,
     settingsShortcutsRoute,
     settingsSystemRoute,
+    settingsSTTProvidersRoute,
     personalizeIndexRoute,
     personalizeCustomDictionaryRoute,
     personalizeFormattingRulesRoute,

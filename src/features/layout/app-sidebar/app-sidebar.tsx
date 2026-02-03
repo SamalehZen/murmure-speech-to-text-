@@ -10,6 +10,7 @@ import {
     Sparkles,
     Wrench,
     AlignLeft,
+    Mic,
 } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
@@ -59,6 +60,12 @@ const getSettingsSubItems = (t: (key: string) => string) => [
         url: '/settings/shortcuts',
         icon: Keyboard,
         dataTestId: 'shortcuts-tab',
+    },
+    {
+        name: t('Speech Recognition'),
+        url: '/settings/stt-providers',
+        icon: Mic,
+        dataTestId: 'stt-providers-tab',
     },
     {
         name: t('System'),
