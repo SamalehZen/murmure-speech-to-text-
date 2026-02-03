@@ -26,12 +26,13 @@ use dictionary::Dictionary;
 use http_api::HttpApiState;
 use llm::llm::pull_ollama_model;
 use log::{error, info, warn};
-use model::Model;
+use model::{DownloadCancelFlag, Model, ModelDownloadManager};
 use overlay::tray::setup_tray;
 use std::str::FromStr;
 use std::sync::Arc;
 use tauri::{DeviceEventFilter, Listener, Manager};
 use tauri_plugin_log::{Target, TargetKind};
+use tokio::sync::Mutex;
 
 fn show_main_window(app: &tauri::AppHandle) {
     if let Some(main_window) = app.get_webview_window("main") {
@@ -90,6 +91,12 @@ pub fn run() {
             let model =
                 Arc::new(Model::new(app.handle().clone()).expect("Failed to initialize model"));
             app.manage(model);
+
+            let download_manager = Arc::new(Mutex::new(ModelDownloadManager::new(app.handle().clone())));
+            app.manage(download_manager);
+
+            app.manage(DownloadCancelFlag::new());
+
             app.manage(AudioState::new());
 
             let mut s = settings::load_settings(app.handle());
@@ -149,6 +156,10 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             is_model_available,
             get_model_path,
+            start_parakeet_download,
+            cancel_parakeet_download,
+            delete_parakeet_model,
+            get_parakeet_status,
             get_recent_transcriptions,
             clear_history,
             get_record_shortcut,
