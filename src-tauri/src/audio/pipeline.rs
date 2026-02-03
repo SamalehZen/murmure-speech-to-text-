@@ -7,6 +7,7 @@ use crate::formatting_rules;
 use crate::history;
 use crate::model::Model;
 use crate::stats;
+use crate::stt::{self, STTProvider};
 use anyhow::{Context, Result};
 use log::{debug, error, info, warn};
 use std::path::Path;
@@ -41,11 +42,23 @@ pub fn process_recording(app: &AppHandle, file_path: &Path) -> Result<String> {
 }
 
 pub fn transcribe_audio(app: &AppHandle, audio_path: &Path) -> Result<String> {
+    let stt_settings = stt::load_stt_settings(app);
+
+    match stt_settings.active_provider {
+        STTProvider::Offline => transcribe_with_parakeet(app, audio_path),
+        STTProvider::OpenAI | STTProvider::Google | STTProvider::Groq => {
+            let rt = tokio::runtime::Runtime::new()
+                .context("Failed to create tokio runtime")?;
+            rt.block_on(transcribe_with_cloud(app, audio_path, &stt_settings))
+        }
+    }
+}
+
+fn transcribe_with_parakeet(app: &AppHandle, audio_path: &Path) -> Result<String> {
     let _ = app.emit("llm-processing-start", ());
 
     let state = app.state::<AudioState>();
 
-    // Ensure engine is loaded
     {
         let mut engine_guard = state.engine.lock();
         if engine_guard.is_none() {
@@ -78,6 +91,31 @@ pub fn transcribe_audio(app: &AppHandle, audio_path: &Path) -> Result<String> {
     let _ = app.emit("llm-processing-end", ());
 
     Ok(result.text)
+}
+
+async fn transcribe_with_cloud(
+    app: &AppHandle,
+    audio_path: &Path,
+    settings: &stt::STTSettings,
+) -> Result<String> {
+    let _ = app.emit("llm-processing-start", ());
+
+    let provider_key = stt::get_provider_key(&settings.active_provider);
+    let config = settings
+        .providers
+        .get(&provider_key)
+        .ok_or_else(|| anyhow::anyhow!("Provider config not found"))?;
+
+    let result = match settings.active_provider {
+        STTProvider::OpenAI => stt::providers::openai::transcribe(config, audio_path).await,
+        STTProvider::Google => stt::providers::google::transcribe(config, audio_path).await,
+        STTProvider::Groq => stt::providers::groq::transcribe(config, audio_path).await,
+        STTProvider::Offline => unreachable!(),
+    };
+
+    let _ = app.emit("llm-processing-end", ());
+
+    result.map_err(|e| anyhow::anyhow!(e))
 }
 
 fn apply_dictionary_and_rules(app: &AppHandle, text: String) -> Result<String> {

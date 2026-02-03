@@ -16,6 +16,7 @@ mod overlay;
 mod settings;
 mod shortcuts;
 mod stats;
+mod stt;
 mod utils;
 
 use crate::shortcuts::init_shortcuts;
@@ -218,7 +219,13 @@ pub fn run() {
             get_formatting_settings,
             set_formatting_settings,
             get_log_level,
-            set_log_level
+            set_log_level,
+            get_stt_settings,
+            save_stt_settings,
+            set_active_stt_provider,
+            save_stt_provider_config,
+            test_stt_connection,
+            fetch_stt_models
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
