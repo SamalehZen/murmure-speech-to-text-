@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, AppWindow, Globe, ChevronDown, ChevronUp } from 'lucide-react';
+import { AppWindow, Plus, ChevronDown, ChevronUp } from 'lucide-react';
 import {
     Dialog,
     DialogContent,
@@ -12,8 +12,11 @@ import { EmojiPicker } from './emoji-picker';
 import { AppPicker } from './app-picker';
 import { UrlInput } from './url-input';
 import { AISettingsSection } from './ai-settings-section';
+import { TriggerRuleEditor } from './trigger-rule-editor';
+import { TriggersList } from './triggers-list';
 import type { PowerModeConfig, TriggerRule } from '../power-mode.types';
-import { createDefaultPowerMode, isAppTrigger, isUrlTrigger } from '../power-mode.types';
+import { createDefaultPowerMode, isAppTrigger } from '../power-mode.types';
+import { powerModeApi } from '../api/power-mode.api';
 import type { LLMProvider } from '@/features/llm-connect/llm-connect.types';
 import { useTranslation } from '@/i18n';
 
@@ -35,16 +38,24 @@ export const PowerModeForm = ({
         powerMode || createDefaultPowerMode()
     );
     const [showAppPicker, setShowAppPicker] = useState(false);
+    const [showRuleEditor, setShowRuleEditor] = useState(false);
+    const [editingRule, setEditingRule] = useState<TriggerRule | null>(null);
     const [showAdvanced, setShowAdvanced] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
 
     const appTriggers = formData.triggers.filter(isAppTrigger);
-    const urlTriggers = formData.triggers.filter(isUrlTrigger);
+    const urlDomainTriggers = formData.triggers.filter(
+        (t) => t.match_type === 'url_domain_equals'
+    );
+    const triggersForList = formData.triggers.filter(
+        (t) => t.match_type !== 'url_domain_equals'
+    );
 
     useEffect(() => {
         if (open) {
             setFormData(powerMode || createDefaultPowerMode());
             setShowAdvanced(false);
+            setEditingRule(null);
         }
     }, [open, powerMode]);
 
@@ -65,25 +76,74 @@ export const PowerModeForm = ({
         }
     };
 
-    const removeAppTrigger = (id: string) => {
+    const handleAppsSelected = (apps: TriggerRule[]) => {
+        const nonAppTriggers = formData.triggers.filter((t) => !isAppTrigger(t));
+        setFormData({
+            ...formData,
+            triggers: [...nonAppTriggers, ...apps],
+        });
+    };
+
+    const handleUrlDomainChanged = (urls: TriggerRule[]) => {
+        const nonUrlDomainTriggers = formData.triggers.filter(
+            (t) => t.match_type !== 'url_domain_equals'
+        );
+        setFormData({
+            ...formData,
+            triggers: [...nonUrlDomainTriggers, ...urls],
+        });
+    };
+
+    const handleAddTrigger = (trigger: TriggerRule) => {
+        setFormData({
+            ...formData,
+            triggers: [...formData.triggers, trigger],
+        });
+    };
+
+    const handleEditTrigger = (trigger: TriggerRule) => {
+        setEditingRule(trigger);
+        setShowRuleEditor(true);
+    };
+
+    const handleSaveTrigger = (trigger: TriggerRule) => {
+        const existingIndex = formData.triggers.findIndex((t) => t.id === trigger.id);
+        if (existingIndex >= 0) {
+            const updatedTriggers = [...formData.triggers];
+            updatedTriggers[existingIndex] = trigger;
+            setFormData({
+                ...formData,
+                triggers: updatedTriggers,
+            });
+        } else {
+            handleAddTrigger(trigger);
+        }
+        setEditingRule(null);
+    };
+
+    const handleDeleteTrigger = (id: string) => {
         setFormData({
             ...formData,
             triggers: formData.triggers.filter((t) => t.id !== id),
         });
     };
 
-    const handleAppsSelected = (apps: TriggerRule[]) => {
+    const handleToggleTrigger = (id: string) => {
         setFormData({
             ...formData,
-            triggers: [...urlTriggers, ...apps],
+            triggers: formData.triggers.map((t) =>
+                t.id === id ? { ...t, enabled: !t.enabled } : t
+            ),
         });
     };
 
-    const handleUrlsChanged = (urls: TriggerRule[]) => {
-        setFormData({
-            ...formData,
-            triggers: [...appTriggers, ...urls],
-        });
+    const handleTestTrigger = async (trigger: TriggerRule): Promise<boolean> => {
+        return powerModeApi.testTrigger(trigger.match_type, trigger.pattern);
+    };
+
+    const handleOpenNewRule = () => {
+        setEditingRule(null);
+        setShowRuleEditor(true);
     };
 
     return (
@@ -92,7 +152,7 @@ export const PowerModeForm = ({
                 <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>
-                            {powerMode ? t('Edit Power Mode') : t('Create Power Mode')}
+                            {powerMode != null ? t('Edit Power Mode') : t('Create Power Mode')}
                         </DialogTitle>
                     </DialogHeader>
 
@@ -127,57 +187,44 @@ export const PowerModeForm = ({
                                 {t('When to Trigger')}
                             </label>
 
-                            <div className="space-y-3 p-4 bg-zinc-800/50 border border-zinc-700 rounded-lg">
-                                <div className="space-y-2">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2 text-sm text-zinc-300">
-                                            <AppWindow className="w-4 h-4" />
-                                            {t('Applications')}
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowAppPicker(true)}
-                                            className="text-sm text-sky-400 hover:text-sky-300 transition-colors"
-                                        >
-                                            {t('Select apps')}
-                                        </button>
-                                    </div>
-
-                                    {appTriggers.length > 0 && (
-                                        <div className="flex flex-wrap gap-2">
-                                            {appTriggers.map((trigger) => (
-                                                <div
-                                                    key={trigger.id}
-                                                    className="flex items-center gap-2 px-3 py-1.5 bg-zinc-700 rounded-full"
-                                                >
-                                                    <span className="text-sm text-zinc-300">
-                                                        {trigger.name}
-                                                    </span>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() =>
-                                                            removeAppTrigger(trigger.id)
-                                                        }
-                                                        className="text-zinc-500 hover:text-zinc-300"
-                                                    >
-                                                        <X className="w-3 h-3" />
-                                                    </button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
+                            <div className="space-y-4 p-4 bg-zinc-800/50 border border-zinc-700 rounded-lg">
+                                <div className="flex flex-wrap gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowAppPicker(true)}
+                                        className="flex items-center gap-2 px-3 py-2 bg-zinc-700 hover:bg-zinc-600 text-zinc-200 text-sm rounded-lg transition-colors"
+                                    >
+                                        <AppWindow className="w-4 h-4" />
+                                        {t('Add Application')}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={handleOpenNewRule}
+                                        className="flex items-center gap-2 px-3 py-2 bg-zinc-700 hover:bg-zinc-600 text-zinc-200 text-sm rounded-lg transition-colors"
+                                    >
+                                        <Plus className="w-4 h-4" />
+                                        {t('Add Custom Rule')}
+                                    </button>
                                 </div>
 
-                                <div className="border-t border-zinc-700 pt-3 space-y-2">
-                                    <div className="flex items-center gap-2 text-sm text-zinc-300">
-                                        <Globe className="w-4 h-4" />
-                                        {t('Websites')}
-                                    </div>
+                                <div className="border-t border-zinc-700 pt-4">
                                     <UrlInput
-                                        urls={urlTriggers}
-                                        onChange={handleUrlsChanged}
+                                        urls={urlDomainTriggers}
+                                        onChange={handleUrlDomainChanged}
                                     />
                                 </div>
+
+                                {triggersForList.length > 0 && (
+                                    <div className="border-t border-zinc-700 pt-4">
+                                        <TriggersList
+                                            triggers={triggersForList}
+                                            onEdit={handleEditTrigger}
+                                            onDelete={handleDeleteTrigger}
+                                            onToggle={handleToggleTrigger}
+                                            onTest={handleTestTrigger}
+                                        />
+                                    </div>
+                                )}
                             </div>
                         </div>
 
@@ -300,6 +347,14 @@ export const PowerModeForm = ({
                 onOpenChange={setShowAppPicker}
                 selectedApps={appTriggers}
                 onSelect={handleAppsSelected}
+            />
+
+            <TriggerRuleEditor
+                rule={editingRule}
+                open={showRuleEditor}
+                onOpenChange={setShowRuleEditor}
+                onSave={handleSaveTrigger}
+                onTest={handleTestTrigger}
             />
         </>
     );
