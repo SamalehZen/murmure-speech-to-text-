@@ -130,3 +130,87 @@ export const isUrlTrigger = (trigger: TriggerRule): boolean =>
     trigger.match_type === 'url_contains' ||
     trigger.match_type === 'url_regex' ||
     trigger.match_type === 'url_domain_equals';
+
+export interface MatchTypeOption {
+    value: TriggerMatchType;
+    label: string;
+    placeholder: string;
+}
+
+export interface MatchTypeGroup {
+    group: string;
+    options: MatchTypeOption[];
+}
+
+export const MATCH_TYPE_OPTIONS: MatchTypeGroup[] = [
+    {
+        group: 'Application',
+        options: [
+            {
+                value: 'app_name_contains',
+                label: 'App name contains',
+                placeholder: 'code',
+            },
+            {
+                value: 'window_title_contains',
+                label: 'Window title contains',
+                placeholder: 'GitHub',
+            },
+            {
+                value: 'process_name_equals',
+                label: 'Process name equals',
+                placeholder: 'chrome.exe',
+            },
+            {
+                value: 'window_title_regex',
+                label: 'Window title regex',
+                placeholder: '(notion|obsidian)',
+            },
+        ],
+    },
+    {
+        group: 'URL (browsers only)',
+        options: [
+            {
+                value: 'url_contains',
+                label: 'URL contains',
+                placeholder: 'github.com',
+            },
+            {
+                value: 'url_domain_equals',
+                label: 'URL domain equals',
+                placeholder: 'chat.openai.com',
+            },
+            {
+                value: 'url_regex',
+                label: 'URL regex',
+                placeholder: '.*\\.google\\.com/.*',
+            },
+        ],
+    },
+];
+
+export const getMatchTypeOption = (
+    matchType: TriggerMatchType
+): MatchTypeOption | undefined => {
+    for (const group of MATCH_TYPE_OPTIONS) {
+        const option = group.options.find((opt) => opt.value === matchType);
+        if (option != null) {
+            return option;
+        }
+    }
+    return undefined;
+};
+
+export const createCustomTrigger = (
+    name: string,
+    matchType: TriggerMatchType,
+    pattern: string,
+    enabled: boolean = true
+): TriggerRule => ({
+    id: crypto.randomUUID(),
+    name,
+    match_type: matchType,
+    pattern,
+    enabled,
+});

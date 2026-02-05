@@ -48,4 +48,13 @@ export const powerModeApi = {
         invoke<PowerModeSession>('get_power_mode_session'),
 
     clearSession: (): Promise<void> => invoke('clear_power_mode_session'),
+
+    testTrigger: (
+        matchType: string,
+        pattern: string
+    ): Promise<boolean> =>
+        invoke<boolean>('test_power_mode_trigger', {
+            match_type: matchType,
+            pattern,
+        }),
 };
