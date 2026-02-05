@@ -13,6 +13,7 @@ mod llm;
 mod model;
 mod onboarding;
 mod overlay;
+mod power_mode;
 mod settings;
 mod shortcuts;
 mod stats;
@@ -218,7 +219,19 @@ pub fn run() {
             get_formatting_settings,
             set_formatting_settings,
             get_log_level,
-            set_log_level
+            set_log_level,
+            get_power_mode_settings,
+            save_power_mode_settings,
+            get_power_modes,
+            save_power_mode,
+            delete_power_mode,
+            toggle_power_mode_enabled,
+            get_installed_apps,
+            get_active_power_mode,
+            check_power_mode_trigger,
+            set_power_mode_session,
+            get_power_mode_session,
+            clear_power_mode_session
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
