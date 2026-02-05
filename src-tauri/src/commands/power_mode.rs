@@ -1,6 +1,7 @@
 use crate::app_context;
 use crate::power_mode::{
     self, InstalledApp, OriginalLLMState, PowerModeConfig, PowerModeMatcher, PowerModeSettings,
+    TriggerRule,
 };
 use tauri::{command, AppHandle, Emitter};
 
@@ -26,7 +27,11 @@ pub fn get_power_modes(app: AppHandle) -> Result<Vec<PowerModeConfig>, String> {
 pub fn save_power_mode(app: AppHandle, config: PowerModeConfig) -> Result<(), String> {
     let mut settings = power_mode::load(&app)?;
 
-    if let Some(pos) = settings.power_modes.iter().position(|pm| pm.id == config.id) {
+    if let Some(pos) = settings
+        .power_modes
+        .iter()
+        .position(|pm| pm.id == config.id)
+    {
         settings.power_modes[pos] = config;
     } else {
         settings.power_modes.push(config);
@@ -152,9 +157,7 @@ fn find_exe_in_dir(
                             let app_name = dir
                                 .file_name()
                                 .map(|n| n.to_string_lossy().to_string())
-                                .unwrap_or_else(|| {
-                                    exe_name.trim_end_matches(".exe").to_string()
-                                });
+                                .unwrap_or_else(|| exe_name.trim_end_matches(".exe").to_string());
 
                             return Some(InstalledApp {
                                 name: app_name,
@@ -240,4 +243,16 @@ pub fn get_power_mode_session() -> power_mode::PowerModeSession {
 #[command]
 pub fn clear_power_mode_session() {
     power_mode::clear_session();
+}
+
+#[command]
+pub fn test_power_mode_trigger(trigger: TriggerRule) -> Result<bool, String> {
+    let window_info = crate::app_context::get_active_window()?;
+    let browser_url = power_mode::get_browser_url_if_active(&window_info.process_name);
+
+    Ok(PowerModeMatcher::trigger_matches(
+        &trigger,
+        &window_info,
+        browser_url.as_deref(),
+    ))
 }

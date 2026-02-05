@@ -231,7 +231,8 @@ pub fn run() {
             check_power_mode_trigger,
             set_power_mode_session,
             get_power_mode_session,
-            clear_power_mode_session
+            clear_power_mode_session,
+            test_power_mode_trigger
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

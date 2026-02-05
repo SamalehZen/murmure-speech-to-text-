@@ -1,5 +1,26 @@
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum TriggerMatchType {
+    AppNameContains,
+    WindowTitleContains,
+    ProcessNameEquals,
+    WindowTitleRegex,
+    UrlContains,
+    UrlRegex,
+    UrlDomainEquals,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TriggerRule {
+    pub id: String,
+    pub name: String,
+    pub match_type: TriggerMatchType,
+    pub pattern: String,
+    pub enabled: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PowerModeConfig {
     pub id: String,
@@ -7,26 +28,12 @@ pub struct PowerModeConfig {
     pub emoji: String,
     pub is_enabled: bool,
     pub priority: i32,
-    pub app_triggers: Vec<AppTrigger>,
-    pub url_triggers: Vec<UrlTrigger>,
+    pub triggers: Vec<TriggerRule>,
     pub is_ai_enhancement_enabled: bool,
     pub selected_ai_provider: Option<String>,
     pub selected_ai_model: Option<String>,
     pub prompt_template: String,
     pub use_screen_capture: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AppTrigger {
-    pub id: String,
-    pub executable_name: String,
-    pub display_name: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UrlTrigger {
-    pub id: String,
-    pub pattern: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

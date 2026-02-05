@@ -9,14 +9,15 @@ import {
 } from '@/components/dialog';
 import { Input } from '@/components/input';
 import { useInstalledApps } from '../hooks/use-installed-apps';
-import type { AppTrigger, InstalledApp } from '../power-mode.types';
+import type { TriggerRule, InstalledApp } from '../power-mode.types';
+import { createAppTrigger } from '../power-mode.types';
 import { useTranslation } from '@/i18n';
 
 interface AppPickerProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    selectedApps: AppTrigger[];
-    onSelect: (apps: AppTrigger[]) => void;
+    selectedApps: TriggerRule[];
+    onSelect: (apps: TriggerRule[]) => void;
 }
 
 export const AppPicker = ({
@@ -29,7 +30,7 @@ export const AppPicker = ({
     const { apps, isLoading } = useInstalledApps();
     const [searchQuery, setSearchQuery] = useState('');
     const [selected, setSelected] = useState<Set<string>>(
-        new Set(selectedApps.map((a) => a.executable_name.toLowerCase()))
+        new Set(selectedApps.map((a) => a.pattern.toLowerCase()))
     );
 
     const filteredApps = useMemo(() => {
@@ -54,13 +55,9 @@ export const AppPicker = ({
     };
 
     const handleConfirm = () => {
-        const triggers: AppTrigger[] = apps
+        const triggers: TriggerRule[] = apps
             .filter((app) => selected.has(app.executable_name.toLowerCase()))
-            .map((app) => ({
-                id: crypto.randomUUID(),
-                executable_name: app.executable_name,
-                display_name: app.name,
-            }));
+            .map((app) => createAppTrigger(app.executable_name, app.name));
         onSelect(triggers);
         onOpenChange(false);
     };
