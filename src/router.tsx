@@ -12,6 +12,7 @@ import { CustomDictionary } from './features/settings/custom-dictionary/custom-d
 import { FormattingRules } from './features/settings/formatting-rules/formatting-rules';
 import { System } from './features/settings/system/system';
 import { LLMConnect } from './features/llm-connect/llm-connect';
+import { PowerMode } from './features/power-mode/power-mode';
 
 const rootRoute = createRootRoute({
     component: () => <Layout />,
@@ -47,6 +48,12 @@ const personalizeLLMConnectRoute = createRoute({
     component: LLMConnect,
 });
 
+const personalizePowerModeRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/personalize/power-mode',
+    component: PowerMode,
+});
+
 const settingsSystemRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: '/settings/system',
@@ -80,6 +87,7 @@ const routeTree = rootRoute.addChildren([
     personalizeCustomDictionaryRoute,
     personalizeFormattingRulesRoute,
     personalizeLLMConnectRoute,
+    personalizePowerModeRoute,
     aboutRoute,
 ]);
 
