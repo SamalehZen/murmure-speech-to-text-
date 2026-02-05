@@ -87,7 +87,8 @@ fn extract_url_from_title(title: &str, process_name: &str) -> Option<String> {
             return Some(page_title.to_string());
         }
 
-        for part in page_title.split(" - ").rev() {
+        let parts: Vec<&str> = page_title.split(" - ").collect();
+        for part in parts.iter().rev() {
             let trimmed = part.trim();
             if trimmed.contains('.') && !trimmed.contains(' ') {
                 if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
