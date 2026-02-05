@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { Plus, X, Globe } from 'lucide-react';
 import { Input } from '@/components/input';
-import type { UrlTrigger } from '../power-mode.types';
+import type { TriggerRule } from '../power-mode.types';
+import { createUrlTrigger } from '../power-mode.types';
 import { useTranslation } from '@/i18n';
 
 interface UrlInputProps {
-    urls: UrlTrigger[];
-    onChange: (urls: UrlTrigger[]) => void;
+    urls: TriggerRule[];
+    onChange: (urls: TriggerRule[]) => void;
 }
 
 export const UrlInput = ({ urls, onChange }: UrlInputProps) => {
@@ -23,15 +24,11 @@ export const UrlInput = ({ urls, onChange }: UrlInputProps) => {
 
         if (
             cleanPattern.length > 0 &&
-            !urls.some((u) => u.pattern.toLowerCase() === cleanPattern.toLowerCase())
+            !urls.some(
+                (u) => u.pattern.toLowerCase() === cleanPattern.toLowerCase()
+            )
         ) {
-            onChange([
-                ...urls,
-                {
-                    id: crypto.randomUUID(),
-                    pattern: cleanPattern,
-                },
-            ]);
+            onChange([...urls, createUrlTrigger(cleanPattern)]);
         }
         setInputValue('');
     };

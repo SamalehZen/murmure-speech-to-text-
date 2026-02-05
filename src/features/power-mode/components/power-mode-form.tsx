@@ -12,8 +12,8 @@ import { EmojiPicker } from './emoji-picker';
 import { AppPicker } from './app-picker';
 import { UrlInput } from './url-input';
 import { AISettingsSection } from './ai-settings-section';
-import type { PowerModeConfig, AppTrigger } from '../power-mode.types';
-import { createDefaultPowerMode } from '../power-mode.types';
+import type { PowerModeConfig, TriggerRule } from '../power-mode.types';
+import { createDefaultPowerMode, isAppTrigger, isUrlTrigger } from '../power-mode.types';
 import type { LLMProvider } from '@/features/llm-connect/llm-connect.types';
 import { useTranslation } from '@/i18n';
 
@@ -37,6 +37,9 @@ export const PowerModeForm = ({
     const [showAppPicker, setShowAppPicker] = useState(false);
     const [showAdvanced, setShowAdvanced] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+
+    const appTriggers = formData.triggers.filter(isAppTrigger);
+    const urlTriggers = formData.triggers.filter(isUrlTrigger);
 
     useEffect(() => {
         if (open) {
@@ -65,14 +68,21 @@ export const PowerModeForm = ({
     const removeAppTrigger = (id: string) => {
         setFormData({
             ...formData,
-            app_triggers: formData.app_triggers.filter((t) => t.id !== id),
+            triggers: formData.triggers.filter((t) => t.id !== id),
         });
     };
 
-    const handleAppsSelected = (apps: AppTrigger[]) => {
+    const handleAppsSelected = (apps: TriggerRule[]) => {
         setFormData({
             ...formData,
-            app_triggers: apps,
+            triggers: [...urlTriggers, ...apps],
+        });
+    };
+
+    const handleUrlsChanged = (urls: TriggerRule[]) => {
+        setFormData({
+            ...formData,
+            triggers: [...appTriggers, ...urls],
         });
     };
 
@@ -133,15 +143,15 @@ export const PowerModeForm = ({
                                         </button>
                                     </div>
 
-                                    {formData.app_triggers.length > 0 && (
+                                    {appTriggers.length > 0 && (
                                         <div className="flex flex-wrap gap-2">
-                                            {formData.app_triggers.map((trigger) => (
+                                            {appTriggers.map((trigger) => (
                                                 <div
                                                     key={trigger.id}
                                                     className="flex items-center gap-2 px-3 py-1.5 bg-zinc-700 rounded-full"
                                                 >
                                                     <span className="text-sm text-zinc-300">
-                                                        {trigger.display_name}
+                                                        {trigger.name}
                                                     </span>
                                                     <button
                                                         type="button"
@@ -164,13 +174,8 @@ export const PowerModeForm = ({
                                         {t('Websites')}
                                     </div>
                                     <UrlInput
-                                        urls={formData.url_triggers}
-                                        onChange={(urls) =>
-                                            setFormData({
-                                                ...formData,
-                                                url_triggers: urls,
-                                            })
-                                        }
+                                        urls={urlTriggers}
+                                        onChange={handleUrlsChanged}
                                     />
                                 </div>
                             </div>
@@ -293,7 +298,7 @@ export const PowerModeForm = ({
             <AppPicker
                 open={showAppPicker}
                 onOpenChange={setShowAppPicker}
-                selectedApps={formData.app_triggers}
+                selectedApps={appTriggers}
                 onSelect={handleAppsSelected}
             />
         </>

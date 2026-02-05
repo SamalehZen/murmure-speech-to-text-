@@ -15,8 +15,7 @@ export const PowerModeCard = ({
     onDelete,
     onToggle,
 }: PowerModeCardProps) => {
-    const triggerCount =
-        powerMode.app_triggers.length + powerMode.url_triggers.length;
+    const triggerCount = powerMode.triggers.length;
 
     return (
         <div className="flex items-center gap-3 p-3 bg-zinc-800/50 border border-zinc-700 rounded-lg hover:border-zinc-600 transition-colors group">
