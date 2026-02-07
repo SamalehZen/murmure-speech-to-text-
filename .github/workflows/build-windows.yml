@@ -85,7 +85,7 @@ jobs:
                   if-no-files-found: error
 
             - name: SignPath Sign
-              if: ${{ inputs.dry == false }}
+              if: ${{ inputs.dry == false && secrets.SIGNPATH_API_TOKEN != '' && secrets.SIGNPATH_ORG_ID != '' }}
               uses: signpath/github-action-submit-signing-request@v2
               with:
                   api-token: '${{ secrets.SIGNPATH_API_TOKEN }}'
@@ -95,6 +95,14 @@ jobs:
                   github-artifact-id: '${{ steps.upload-unsigned-artifact.outputs.artifact-id }}'
                   wait-for-completion: true
                   output-artifact-directory: 'signed_artifacts'
+
+            - name: Skip signing (no SignPath secrets)
+              if: ${{ inputs.dry == false && (secrets.SIGNPATH_API_TOKEN == '' || secrets.SIGNPATH_ORG_ID == '') }}
+              shell: pwsh
+              run: |
+                  Write-Host "SignPath secrets not configured, skipping code signing"
+                  New-Item -ItemType Directory -Force -Path "signed_artifacts" | Out-Null
+                  Copy-Item "unsigned_artifacts/*" -Destination "signed_artifacts/" -Recurse
 
             - name: Restore Tauri signing key
               if: ${{ inputs.dry == false }}
