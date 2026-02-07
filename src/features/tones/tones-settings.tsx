@@ -11,8 +11,11 @@ import {
     AppWindow,
     Star,
     Crosshair,
+    ChevronDown,
+    ChevronRight,
 } from 'lucide-react';
 import { Input } from '@/components/input';
+import { Switch } from '@/components/switch';
 import {
     Dialog,
     DialogContent,
@@ -21,7 +24,8 @@ import {
     DialogTitle,
 } from '@/components/dialog';
 import { Page } from '@/components/page';
-import { Tone, RegisteredApp, AppMatcher } from '../hooks/use-tones';
+import { Tone, RegisteredApp, AppMatcher } from './hooks/use-tones';
+import { BasePromptEditor } from './base-prompt-editor';
 
 interface CurrentContext {
     appName: string;
@@ -126,6 +130,11 @@ function ToneItem({
                         {tone.is_system && (
                             <span className="px-1.5 py-0.5 text-xs bg-zinc-600 rounded text-zinc-300">
                                 {t('System')}
+                            </span>
+                        )}
+                        {tone.use_base_prompt && (
+                            <span className="px-1.5 py-0.5 text-xs bg-green-600/50 rounded text-green-300">
+                                {t('Inherits')}
                             </span>
                         )}
                     </div>
@@ -381,6 +390,7 @@ interface EditToneDialogProps {
     onSave: (updates: Partial<Tone>) => void;
     tone: Tone | null;
     models: Array<{ name: string }>;
+    basePrompt: string;
 }
 
 function EditToneDialog({
@@ -389,12 +399,15 @@ function EditToneDialog({
     onSave,
     tone,
     models,
+    basePrompt,
 }: EditToneDialogProps) {
     const { t } = useTranslation();
     const [name, setName] = useState(tone?.name || '');
     const [model, setModel] = useState(tone?.model || '');
     const [prompt, setPrompt] = useState(tone?.prompt || '');
     const [icon, setIcon] = useState(tone?.icon || '');
+    const [useBasePrompt, setUseBasePrompt] = useState(tone?.use_base_prompt ?? true);
+    const [showPreview, setShowPreview] = useState(false);
 
     useEffect(() => {
         if (open) {
@@ -402,8 +415,14 @@ function EditToneDialog({
             setModel(tone?.model || '');
             setPrompt(tone?.prompt || '');
             setIcon(tone?.icon || '');
+            setUseBasePrompt(tone?.use_base_prompt ?? true);
+            setShowPreview(false);
         }
     }, [open, tone]);
+
+    const previewPrompt = useBasePrompt
+        ? basePrompt.replace('{{TONE_INSTRUCTIONS}}', prompt)
+        : prompt;
 
     const handleSave = () => {
         if (!name.trim()) {
@@ -416,6 +435,7 @@ function EditToneDialog({
             model,
             prompt,
             icon: icon || null,
+            use_base_prompt: useBasePrompt,
         });
         onClose();
     };
@@ -471,21 +491,60 @@ function EditToneDialog({
                         </select>
                     </div>
 
+                    <div className="flex items-center gap-3 p-3 bg-zinc-800/50 rounded-lg">
+                        <Switch
+                            checked={useBasePrompt}
+                            onCheckedChange={setUseBasePrompt}
+                        />
+                        <div>
+                            <label className="text-sm font-medium text-zinc-200">
+                                {t('Use base prompt (recommended)')}
+                            </label>
+                            <p className="text-xs text-zinc-500">
+                                {useBasePrompt
+                                    ? t('Instructions will be inserted into the shared base prompt')
+                                    : t('Full control mode - include all necessary instructions')}
+                            </p>
+                        </div>
+                    </div>
+
                     <div>
                         <label className="block text-sm text-zinc-400 mb-1">
-                            {t('Prompt Template')}
+                            {useBasePrompt ? t('Tone-Specific Instructions') : t('Full Prompt')}
                         </label>
                         <textarea
                             className="w-full h-48 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-zinc-200 font-mono text-sm resize-none"
-                            placeholder={t('Enter prompt template...')}
+                            placeholder={useBasePrompt
+                                ? t('Instructions specific to this tone...')
+                                : t('Enter complete prompt template...')}
                             value={prompt}
                             onChange={(e) => setPrompt(e.target.value)}
                         />
                         <p className="text-xs text-zinc-500 mt-1">
-                            {t(
-                                'Available variables: {{TRANSCRIPT}}, {{DICTIONARY}}, {{BROWSER_URL}}, {{BROWSER_DOMAIN}}, {{WINDOW_TITLE}}, {{APP_NAME}}'
-                            )}
+                            {useBasePrompt
+                                ? t('These instructions will be inserted at {{TONE_INSTRUCTIONS}} marker')
+                                : t('Available variables: {{TRANSCRIPT}}, {{DICTIONARY}}, {{BROWSER_URL}}, {{BROWSER_DOMAIN}}, {{WINDOW_TITLE}}, {{APP_NAME}}')}
                         </p>
+                    </div>
+
+                    <div className="border border-zinc-700 rounded-lg overflow-hidden">
+                        <button
+                            type="button"
+                            onClick={() => setShowPreview(!showPreview)}
+                            className="flex items-center gap-2 w-full p-3 text-left text-sm text-zinc-400 hover:bg-zinc-800/50"
+                        >
+                            {showPreview ? (
+                                <ChevronDown className="w-4 h-4" />
+                            ) : (
+                                <ChevronRight className="w-4 h-4" />
+                            )}
+                            {t('Preview composed prompt')}
+                        </button>
+                        {showPreview && (
+                            <pre className="p-3 bg-zinc-900 text-xs text-zinc-400 overflow-auto max-h-[200px] border-t border-zinc-700">
+                                {previewPrompt}
+                            </pre>
+                        )}
                     </div>
                 </div>
 
@@ -507,20 +566,24 @@ interface TonesSettingsProps {
     registeredApps: RegisteredApp[];
     defaultToneId: string | null;
     models: Array<{ name: string }>;
+    basePrompt: string;
+    defaultBasePrompt: string;
     onAddTone: (tone: Omit<Tone, 'id'>) => Promise<Tone>;
     onUpdateTone: (id: string, updates: Partial<Tone>) => Promise<void>;
     onDeleteTone: (id: string) => Promise<void>;
     onAddRegisteredApp: (
         matcher: AppMatcher,
         displayName: string,
-        toneId: string
-    ) => Promise<void>;
+        toneId: string,
+        icon?: string
+    ) => Promise<RegisteredApp>;
     onUpdateRegisteredApp: (
         id: string,
         updates: Partial<RegisteredApp>
     ) => Promise<void>;
     onDeleteRegisteredApp: (id: string) => Promise<void>;
     onSetDefaultTone: (toneId: string) => Promise<void>;
+    onUpdateBasePrompt: (prompt: string) => Promise<void>;
 }
 
 export function TonesSettings({
@@ -528,6 +591,8 @@ export function TonesSettings({
     registeredApps,
     defaultToneId,
     models,
+    basePrompt,
+    defaultBasePrompt,
     onAddTone,
     onUpdateTone,
     onDeleteTone,
@@ -535,6 +600,7 @@ export function TonesSettings({
     onUpdateRegisteredApp,
     onDeleteRegisteredApp,
     onSetDefaultTone,
+    onUpdateBasePrompt,
 }: TonesSettingsProps) {
     const { t } = useTranslation();
     const [matcherDialogOpen, setMatcherDialogOpen] = useState(false);
@@ -625,6 +691,7 @@ export function TonesSettings({
                 await onAddTone({
                     name: updates.name || 'New Tone',
                     prompt: updates.prompt || '',
+                    use_base_prompt: updates.use_base_prompt ?? true,
                     model: updates.model || '',
                     is_system: false,
                     icon: updates.icon || null,
@@ -649,7 +716,13 @@ export function TonesSettings({
 
     return (
         <div className="space-y-6">
-            <div>
+            <BasePromptEditor
+                basePrompt={basePrompt}
+                defaultBasePrompt={defaultBasePrompt}
+                onSave={onUpdateBasePrompt}
+            />
+
+            <div className="border-t border-zinc-700 pt-6">
                 <div className="flex items-center justify-between mb-3">
                     <h3 className="text-lg font-medium text-zinc-200">
                         {t('Writing Tones')}
@@ -749,6 +822,7 @@ export function TonesSettings({
                 onSave={handleSaveTone}
                 tone={editTone}
                 models={models}
+                basePrompt={basePrompt}
             />
         </div>
     );

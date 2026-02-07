@@ -1,3 +1,4 @@
+use crate::llm::helpers::DEFAULT_BASE_PROMPT;
 use crate::llm::types::{LLMConnectSettings, Tone, TonesSettings};
 use uuid::Uuid;
 
@@ -9,6 +10,7 @@ pub fn migrate_llm_modes_to_tones(old_settings: &LLMConnectSettings) -> TonesSet
             id: Uuid::new_v4().to_string(),
             name: mode.name.clone(),
             prompt: mode.prompt.clone(),
+            use_base_prompt: false,
             model: mode.model.clone(),
             is_system: false,
             icon: None,
@@ -19,6 +21,7 @@ pub fn migrate_llm_modes_to_tones(old_settings: &LLMConnectSettings) -> TonesSet
     let default_tone_id = tones.get(old_settings.active_mode_index).map(|t| t.id.clone());
 
     TonesSettings {
+        base_prompt: DEFAULT_BASE_PROMPT.to_string(),
         tones,
         registered_apps: Vec::new(),
         default_tone_id,

@@ -39,6 +39,8 @@ pub struct Tone {
     pub id: String,
     pub name: String,
     pub prompt: String,
+    #[serde(default)]
+    pub use_base_prompt: bool,
     pub model: String,
     pub is_system: bool,
     pub icon: Option<String>,
@@ -65,13 +67,26 @@ pub struct RegisteredApp {
     pub icon: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(default)]
 pub struct TonesSettings {
+    pub base_prompt: String,
     pub tones: Vec<Tone>,
     pub registered_apps: Vec<RegisteredApp>,
     pub default_tone_id: Option<String>,
     pub manual_override_tone_id: Option<String>,
+}
+
+impl Default for TonesSettings {
+    fn default() -> Self {
+        Self {
+            base_prompt: String::new(),
+            tones: Vec::new(),
+            registered_apps: Vec::new(),
+            default_tone_id: None,
+            manual_override_tone_id: None,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]

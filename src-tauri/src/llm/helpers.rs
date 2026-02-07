@@ -3,6 +3,55 @@ use crate::llm::types::{LLMConnectSettings, Tone, TonesSettings};
 use std::{fs, path::PathBuf};
 use tauri::{AppHandle, Manager};
 
+pub const DEFAULT_BASE_PROMPT: &str = r#"<role>
+Your role is to correct a transcription produced by an ASR. You are not a conversational assistant.
+</role>
+
+<context>
+Application: {{APP_NAME}}
+Window: {{WINDOW_TITLE}}
+Browser URL: {{BROWSER_URL}}
+Domain: {{BROWSER_DOMAIN}}
+</context>
+
+<base_rules>
+- Correct spelling and grammar.
+- Remove repetitions and hesitations.
+- Replace misrecognized words only if phonetically similar to dictionary words: <lexicon>{{DICTIONARY}}</lexicon>
+- Never modify the meaning or content.
+- Do not answer questions or comment on them.
+- Remove all '*' characters and never add any.
+- Do not generate any comment or introduction.
+- If nothing to modify, return the transcription as is.
+</base_rules>
+
+<tone_specific>
+{{TONE_INSTRUCTIONS}}
+</tone_specific>
+
+<input>{{TRANSCRIPT}}</input>
+"#;
+
+pub const TONE_GENERAL_INSTRUCTIONS: &str = r#"
+Structure into paragraphs only if it clearly improves readability.
+"#;
+
+pub const TONE_EMAIL_INSTRUCTIONS: &str = r#"
+Format as a professional email:
+- Add appropriate greeting if missing
+- Structure into clear paragraphs
+- Add sign-off if the context suggests it's complete
+- Keep tone professional but friendly
+"#;
+
+pub const TONE_CODE_INSTRUCTIONS: &str = r#"
+This is code-related dictation:
+- Preserve technical terms exactly
+- Format code snippets with proper syntax
+- Keep variable names, function names, and technical jargon unchanged
+- Structure as comments or documentation if appropriate
+"#;
+
 pub const DEFAULT_GENERAL_PROMPT: &str = r#"<role>
 Your role is to correct a transcription produced by an ASR. You are not a conversational assistant.
 </role>
@@ -89,7 +138,8 @@ pub fn get_system_tones() -> Vec<Tone> {
         Tone {
             id: "system-general".to_string(),
             name: "General".to_string(),
-            prompt: DEFAULT_GENERAL_PROMPT.to_string(),
+            prompt: TONE_GENERAL_INSTRUCTIONS.to_string(),
+            use_base_prompt: true,
             model: String::new(),
             is_system: true,
             icon: Some("📝".to_string()),
@@ -97,7 +147,8 @@ pub fn get_system_tones() -> Vec<Tone> {
         Tone {
             id: "system-email".to_string(),
             name: "Email".to_string(),
-            prompt: DEFAULT_EMAIL_PROMPT.to_string(),
+            prompt: TONE_EMAIL_INSTRUCTIONS.to_string(),
+            use_base_prompt: true,
             model: String::new(),
             is_system: true,
             icon: Some("📧".to_string()),
@@ -105,12 +156,21 @@ pub fn get_system_tones() -> Vec<Tone> {
         Tone {
             id: "system-code".to_string(),
             name: "Code".to_string(),
-            prompt: DEFAULT_CODE_PROMPT.to_string(),
+            prompt: TONE_CODE_INSTRUCTIONS.to_string(),
+            use_base_prompt: true,
             model: String::new(),
             is_system: true,
             icon: Some("💻".to_string()),
         },
     ]
+}
+
+pub fn compose_prompt(tone: &Tone, base_prompt: &str) -> String {
+    if tone.use_base_prompt {
+        base_prompt.replace("{{TONE_INSTRUCTIONS}}", &tone.prompt)
+    } else {
+        tone.prompt.clone()
+    }
 }
 
 fn llm_connect_settings_path(app: &AppHandle) -> Result<PathBuf, String> {
@@ -196,6 +256,11 @@ pub fn load_tones_settings(app: &AppHandle) -> TonesSettings {
                 let _ = save_tones_settings(app, &settings);
             }
 
+            if settings.base_prompt.trim().is_empty() {
+                settings.base_prompt = DEFAULT_BASE_PROMPT.to_string();
+                let _ = save_tones_settings(app, &settings);
+            }
+
             settings
         }
         Err(_) => {
@@ -235,6 +300,7 @@ fn initialize_default_tones_settings(app: &AppHandle) -> TonesSettings {
     let default_tone_id = tones.first().map(|t| t.id.clone());
 
     let settings = TonesSettings {
+        base_prompt: DEFAULT_BASE_PROMPT.to_string(),
         tones,
         registered_apps: Vec::new(),
         default_tone_id,

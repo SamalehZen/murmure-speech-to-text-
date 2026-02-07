@@ -1,7 +1,7 @@
 import { useTranslation } from '@/i18n';
 import { useState, useEffect } from 'react';
 import { useLLMConnect, LLMMode } from './hooks/use-llm-connect';
-import { useTones, TonesSettings } from '@/features/tones';
+import { useTones, TonesSettings, DEFAULT_BASE_PROMPT } from '@/features/tones';
 import { toast } from 'react-toastify';
 import { getPresetLabel, getPromptByPreset } from './llm-connect.helpers';
 import { LLMConnectOnboarding } from './onboarding/llm-connect-onboarding';
@@ -34,6 +34,7 @@ export const LLMConnect = () => {
         updateRegisteredApp,
         deleteRegisteredApp,
         setDefaultTone,
+        updateBasePrompt,
     } = useTones();
 
     const [showModelSelector, setShowModelSelector] = useState(false);
@@ -194,6 +195,8 @@ export const LLMConnect = () => {
                         registeredApps={tonesSettings.registered_apps}
                         defaultToneId={tonesSettings.default_tone_id}
                         models={models}
+                        basePrompt={tonesSettings.base_prompt}
+                        defaultBasePrompt={DEFAULT_BASE_PROMPT}
                         onAddTone={addTone}
                         onUpdateTone={updateTone}
                         onDeleteTone={deleteTone}
@@ -201,6 +204,7 @@ export const LLMConnect = () => {
                         onUpdateRegisteredApp={updateRegisteredApp}
                         onDeleteRegisteredApp={deleteRegisteredApp}
                         onSetDefaultTone={setDefaultTone}
+                        onUpdateBasePrompt={updateBasePrompt}
                     />
                 )}
 
