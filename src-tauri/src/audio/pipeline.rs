@@ -1,5 +1,6 @@
 use crate::audio::helpers::read_wav_samples;
 use crate::audio::types::{AudioState, RecordingMode};
+use crate::context::take_recording_context;
 use crate::dictionary::{fix_transcription_with_dictionary, get_cc_rules_path, Dictionary};
 use crate::engine::transcription_engine::TranscriptionEngine;
 use crate::engine::ParakeetModelParams;
@@ -95,6 +96,12 @@ fn apply_llm_processing(app: &AppHandle, text: String) -> Result<String> {
     let state = app.state::<AudioState>();
     let recording_mode = state.get_recording_mode();
 
+    let context = take_recording_context();
+    let (browser_ctx, window_title, app_name) = match context {
+        Some(ctx) => (Some(ctx.browser), Some(ctx.window_title), Some(ctx.app_name)),
+        None => (None, None, None),
+    };
+
     let rt = tokio::runtime::Runtime::new().context("Failed to create tokio runtime")?;
 
     match recording_mode {
@@ -158,7 +165,10 @@ DO NOT explain, comment, or add any text beyond the transformation output.
             match rt.block_on(crate::llm::post_process_with_llm(
                 app,
                 text.clone(),
-                false, // force_bypass
+                false,
+                browser_ctx,
+                window_title,
+                app_name,
             )) {
                 Ok(llm_text) => {
                     debug!("Transcription post-processed with LLM: {}", llm_text);

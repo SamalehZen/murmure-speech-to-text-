@@ -1,3 +1,4 @@
+use crate::context::BrowserContext;
 use crate::dictionary;
 use crate::llm::helpers::load_llm_connect_settings;
 use crate::llm::types::{
@@ -12,8 +13,10 @@ pub async fn post_process_with_llm(
     app: &AppHandle,
     transcription: String,
     force_bypass: bool,
+    browser_context: Option<BrowserContext>,
+    window_title: Option<String>,
+    app_name: Option<String>,
 ) -> Result<String, String> {
-    // If force_bypass is true, skip LLM processing entirely
     if force_bypass {
         return Ok(transcription);
     }
@@ -31,19 +34,37 @@ pub async fn post_process_with_llm(
 
     let _ = app.emit("llm-processing-start", ());
 
-    // Load dictionary words and format as comma-separated list
     let dictionary_words = dictionary::load(app)
         .unwrap_or_default()
         .into_keys()
         .collect::<Vec<String>>()
         .join(", ");
 
+    let browser_url = browser_context
+        .as_ref()
+        .and_then(|c| c.url.as_deref())
+        .unwrap_or("");
+    let browser_domain = browser_context
+        .as_ref()
+        .and_then(|c| c.domain.as_deref())
+        .unwrap_or("");
+    let window_title_str = window_title.as_deref().unwrap_or("");
+    let app_name_str = app_name.as_deref().unwrap_or("");
+
     let prompt = active_mode
         .prompt
         .replace("{{TRANSCRIPT}}", &transcription)
-        .replace("{transcript}", &transcription) // Support new variable syntax
+        .replace("{transcript}", &transcription)
         .replace("{{DICTIONARY}}", &dictionary_words)
-        .replace("{dictionary}", &dictionary_words); // Support new variable syntax
+        .replace("{dictionary}", &dictionary_words)
+        .replace("{{BROWSER_URL}}", browser_url)
+        .replace("{browser_url}", browser_url)
+        .replace("{{BROWSER_DOMAIN}}", browser_domain)
+        .replace("{browser_domain}", browser_domain)
+        .replace("{{WINDOW_TITLE}}", window_title_str)
+        .replace("{window_title}", window_title_str)
+        .replace("{{APP_NAME}}", app_name_str)
+        .replace("{app_name}", app_name_str);
 
     let client = reqwest::Client::new();
     let url = format!("{}/generate", settings.url.trim_end_matches('/'));
