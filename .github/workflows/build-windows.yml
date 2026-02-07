@@ -84,8 +84,23 @@ jobs:
                   retention-days: 1
                   if-no-files-found: error
 
+            - name: Check SignPath configuration
+              if: ${{ inputs.dry == false }}
+              id: signpath-check
+              shell: pwsh
+              env:
+                  SIGNPATH_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+                  SIGNPATH_ORG: ${{ secrets.SIGNPATH_ORG_ID }}
+              run: |
+                  if ($env:SIGNPATH_TOKEN -and $env:SIGNPATH_ORG) {
+                      echo "configured=true" >> $env:GITHUB_OUTPUT
+                  } else {
+                      echo "configured=false" >> $env:GITHUB_OUTPUT
+                      Write-Host "SignPath secrets not configured, will skip code signing"
+                  }
+
             - name: SignPath Sign
-              if: ${{ inputs.dry == false && secrets.SIGNPATH_API_TOKEN != '' && secrets.SIGNPATH_ORG_ID != '' }}
+              if: ${{ inputs.dry == false && steps.signpath-check.outputs.configured == 'true' }}
               uses: signpath/github-action-submit-signing-request@v2
               with:
                   api-token: '${{ secrets.SIGNPATH_API_TOKEN }}'
@@ -96,11 +111,11 @@ jobs:
                   wait-for-completion: true
                   output-artifact-directory: 'signed_artifacts'
 
-            - name: Skip signing (no SignPath secrets)
-              if: ${{ inputs.dry == false && (secrets.SIGNPATH_API_TOKEN == '' || secrets.SIGNPATH_ORG_ID == '') }}
+            - name: Use unsigned artifacts (no SignPath)
+              if: ${{ inputs.dry == false && steps.signpath-check.outputs.configured == 'false' }}
               shell: pwsh
               run: |
-                  Write-Host "SignPath secrets not configured, skipping code signing"
+                  Write-Host "Using unsigned artifacts"
                   New-Item -ItemType Directory -Force -Path "signed_artifacts" | Out-Null
                   Copy-Item "unsigned_artifacts/*" -Destination "signed_artifacts/" -Recurse
 
