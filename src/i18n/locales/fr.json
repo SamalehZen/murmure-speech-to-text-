@@ -280,8 +280,19 @@
     "Word already exists in the dictionary": "Le mot existe déjà dans le dictionnaire",
     "words": "mots",
     "wpm": "mots/min",
+    "Writing Tones": "Tons d'écriture",
     "You are all set!": "Vous êtes prêt !",
     "You can customize the prompt or create new modes on the next screen.": "Vous pouvez personnaliser le prompt ou créer de nouveaux modes sur l'écran suivant.",
     "Your average words per minute with Murmure this month.": "Votre moyenne de mots par minute avec Murmure ce mois-ci.",
-    "Zero tracking, zero analytics. Your data stays yours, always.": "Zéro suivi, zéro analyse. Vos données restent les vôtres, toujours."
+    "Zero tracking, zero analytics. Your data stays yours, always.": "Zéro suivi, zéro analyse. Vos données restent les vôtres, toujours.",
+    "Inherits": "Hérite",
+    "Use base prompt (recommended)": "Utiliser le prompt de base (recommandé)",
+    "Instructions will be inserted into the shared base prompt": "Les instructions seront insérées dans le prompt de base partagé",
+    "Full control mode - include all necessary instructions": "Mode contrôle total - inclure toutes les instructions nécessaires",
+    "Tone-Specific Instructions": "Instructions spécifiques au ton",
+    "Full Prompt": "Prompt complet",
+    "Instructions specific to this tone...": "Instructions spécifiques à ce ton...",
+    "Enter complete prompt template...": "Entrez le modèle de prompt complet...",
+    "These instructions will be inserted at {{TONE_INSTRUCTIONS}} marker": "Ces instructions seront insérées au marqueur {{TONE_INSTRUCTIONS}}",
+    "Preview composed prompt": "Aperçu du prompt composé"
 }

@@ -2,10 +2,40 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { useState, useEffect, useCallback } from 'react';
 
+export const DEFAULT_BASE_PROMPT = `<role>
+Your role is to correct a transcription produced by an ASR. You are not a conversational assistant.
+</role>
+
+<context>
+Application: {{APP_NAME}}
+Window: {{WINDOW_TITLE}}
+Browser URL: {{BROWSER_URL}}
+Domain: {{BROWSER_DOMAIN}}
+</context>
+
+<base_rules>
+- Correct spelling and grammar.
+- Remove repetitions and hesitations.
+- Replace misrecognized words only if phonetically similar to dictionary words: <lexicon>{{DICTIONARY}}</lexicon>
+- Never modify the meaning or content.
+- Do not answer questions or comment on them.
+- Remove all '*' characters and never add any.
+- Do not generate any comment or introduction.
+- If nothing to modify, return the transcription as is.
+</base_rules>
+
+<tone_specific>
+{{TONE_INSTRUCTIONS}}
+</tone_specific>
+
+<input>{{TRANSCRIPT}}</input>
+`;
+
 export interface Tone {
     id: string;
     name: string;
     prompt: string;
+    use_base_prompt: boolean;
     model: string;
     is_system: boolean;
     icon: string | null;
@@ -27,6 +57,7 @@ export interface RegisteredApp {
 }
 
 export interface TonesSettings {
+    base_prompt: string;
     tones: Tone[];
     registered_apps: RegisteredApp[];
     default_tone_id: string | null;
@@ -45,6 +76,7 @@ export interface MatchedBy {
 
 export const useTones = () => {
     const [settings, setSettings] = useState<TonesSettings>({
+        base_prompt: '',
         tones: [],
         registered_apps: [],
         default_tone_id: null,
@@ -230,6 +262,13 @@ export const useTones = () => {
         [settings.tones]
     );
 
+    const updateBasePrompt = useCallback(
+        async (basePrompt: string) => {
+            await updateSettings({ base_prompt: basePrompt });
+        },
+        [updateSettings]
+    );
+
     return {
         settings,
         isLoading,
@@ -246,5 +285,6 @@ export const useTones = () => {
         setManualOverride,
         clearManualOverride,
         getToneById,
+        updateBasePrompt,
     };
 };

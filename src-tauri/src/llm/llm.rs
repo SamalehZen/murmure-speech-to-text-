@@ -1,6 +1,6 @@
 use crate::context::BrowserContext;
 use crate::dictionary;
-use crate::llm::helpers::{load_llm_connect_settings, load_tones_settings};
+use crate::llm::helpers::{compose_prompt, load_llm_connect_settings, load_tones_settings, DEFAULT_BASE_PROMPT};
 use crate::llm::tone_selector::select_tone;
 use crate::llm::types::{
     OllamaGenerateRequest, OllamaGenerateResponse, OllamaModel, OllamaOptions, OllamaPullRequest,
@@ -35,7 +35,13 @@ pub async fn post_process_with_llm(
                     selection.tone.name, selection.matched_by
                 );
                 let _ = app.emit("tone-selected", &selection);
-                (selection.tone.prompt, selection.tone.model)
+                let base = if tones_settings.base_prompt.trim().is_empty() {
+                    DEFAULT_BASE_PROMPT
+                } else {
+                    &tones_settings.base_prompt
+                };
+                let composed = compose_prompt(&selection.tone, base);
+                (composed, selection.tone.model)
             }
             None => {
                 let active_mode = llm_settings
