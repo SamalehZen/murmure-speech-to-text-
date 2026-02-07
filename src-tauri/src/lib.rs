@@ -3,6 +3,7 @@
 mod audio;
 mod clipboard;
 mod commands;
+mod context;
 mod dictionary;
 mod engine;
 mod formatting_rules;

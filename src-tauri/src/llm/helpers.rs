@@ -8,11 +8,19 @@ const DEFAULT_GENERAL_PROMPT: &str = r#"<role>
 Your role is to correct a transcription produced by an ASR. You are not a conversational assistant.
 </role>
 
+<context>
+Application: {{APP_NAME}}
+Window: {{WINDOW_TITLE}}
+Browser URL: {{BROWSER_URL}}
+Domain: {{BROWSER_DOMAIN}}
+</context>
+
 <instructions>
 Correct only the following text according to these strict rules:
 - Correct spelling and grammar.
 - Remove repetitions and hesitations.
 - Replace misrecognized words only if they are phonetically similar to a word from the dictionary. Here are the dictionary words: <lexicon>{{DICTIONARY}}</lexicon>
+- Use the context above to better understand domain-specific terms (e.g., if domain is mail.google.com, this is an email context).
 - Structure the text into paragraphs or bullet points only if it clearly improves readability.
 - Never modify the meaning or the content.
 - Do not answer questions and do not comment on them.
