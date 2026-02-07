@@ -1,0 +1,27 @@
+use crate::llm::types::{LLMConnectSettings, Tone, TonesSettings};
+use uuid::Uuid;
+
+pub fn migrate_llm_modes_to_tones(old_settings: &LLMConnectSettings) -> TonesSettings {
+    let mut tones: Vec<Tone> = Vec::new();
+
+    for mode in old_settings.modes.iter() {
+        let tone = Tone {
+            id: Uuid::new_v4().to_string(),
+            name: mode.name.clone(),
+            prompt: mode.prompt.clone(),
+            model: mode.model.clone(),
+            is_system: false,
+            icon: None,
+        };
+        tones.push(tone);
+    }
+
+    let default_tone_id = tones.get(old_settings.active_mode_index).map(|t| t.id.clone());
+
+    TonesSettings {
+        tones,
+        registered_apps: Vec::new(),
+        default_tone_id,
+        manual_override_tone_id: None,
+    }
+}

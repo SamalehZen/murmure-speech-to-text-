@@ -1,6 +1,7 @@
 import { useTranslation } from '@/i18n';
 import { useState, useEffect } from 'react';
 import { useLLMConnect, LLMMode } from './hooks/use-llm-connect';
+import { useTones, TonesSettings } from '@/features/tones';
 import { toast } from 'react-toastify';
 import { getPresetLabel, getPromptByPreset } from './llm-connect.helpers';
 import { LLMConnectOnboarding } from './onboarding/llm-connect-onboarding';
@@ -23,7 +24,20 @@ export const LLMConnect = () => {
         pullModel,
     } = useLLMConnect();
 
+    const {
+        settings: tonesSettings,
+        isLoading: isTonesLoading,
+        addTone,
+        updateTone,
+        deleteTone,
+        addRegisteredApp,
+        updateRegisteredApp,
+        deleteRegisteredApp,
+        setDefaultTone,
+    } = useTones();
+
     const [showModelSelector, setShowModelSelector] = useState(false);
+    const [activeTab, setActiveTab] = useState<'modes' | 'tones'>('tones');
 
     const activeModeIndex = settings.active_mode_index;
     const activeMode = settings.modes[activeModeIndex];
@@ -97,7 +111,7 @@ export const LLMConnect = () => {
         t,
     ]);
 
-    if (!isSettingsLoaded || !settings.modes || settings.modes.length === 0) {
+    if (!isSettingsLoaded || !settings.modes || settings.modes.length === 0 || isTonesLoading) {
         return (
             <div className="p-8 text-center text-zinc-500">
                 {t('Loading...')}
@@ -151,34 +165,78 @@ export const LLMConnect = () => {
             <div className="space-y-6">
                 <LLMHeader connectionStatus={connectionStatus} />
 
-                <ModeTabs
-                    modes={settings.modes}
-                    activeModeIndex={activeModeIndex}
-                    models={models}
-                    updateSettings={updateSettings}
-                />
+                <div className="flex border-b border-zinc-700 mb-4">
+                    <button
+                        className={`px-4 py-2 text-sm font-medium transition-colors ${
+                            activeTab === 'tones'
+                                ? 'text-sky-400 border-b-2 border-sky-500'
+                                : 'text-zinc-400 hover:text-zinc-200'
+                        }`}
+                        onClick={() => setActiveTab('tones')}
+                    >
+                        {t('Context-Aware Tones')}
+                    </button>
+                    <button
+                        className={`px-4 py-2 text-sm font-medium transition-colors ${
+                            activeTab === 'modes'
+                                ? 'text-sky-400 border-b-2 border-sky-500'
+                                : 'text-zinc-400 hover:text-zinc-200'
+                        }`}
+                        onClick={() => setActiveTab('modes')}
+                    >
+                        {t('Legacy Modes')}
+                    </button>
+                </div>
 
-                {activeMode && (
+                {activeTab === 'tones' && (
+                    <TonesSettings
+                        tones={tonesSettings.tones}
+                        registeredApps={tonesSettings.registered_apps}
+                        defaultToneId={tonesSettings.default_tone_id}
+                        models={models}
+                        onAddTone={addTone}
+                        onUpdateTone={updateTone}
+                        onDeleteTone={deleteTone}
+                        onAddRegisteredApp={addRegisteredApp}
+                        onUpdateRegisteredApp={updateRegisteredApp}
+                        onDeleteRegisteredApp={deleteRegisteredApp}
+                        onSetDefaultTone={setDefaultTone}
+                    />
+                )}
+
+                {activeTab === 'modes' && (
                     <>
-                        <ModeContent
-                            activeMode={activeMode}
-                            activeModeIndex={activeModeIndex}
+                        <div className="p-3 bg-amber-900/30 border border-amber-700 rounded-lg text-amber-200 text-sm mb-4">
+                            {t('Legacy modes are being replaced by context-aware tones. Your existing modes have been migrated.')}
+                        </div>
+                        <ModeTabs
                             modes={settings.modes}
+                            activeModeIndex={activeModeIndex}
                             models={models}
-                            isLoading={isLoading}
                             updateSettings={updateSettings}
-                            onRefreshModels={handleTestConnection}
                         />
 
-                        <LLMAdvancedSettings
-                            url={settings.url}
-                            onUrlChange={(url) => updateSettings({ url })}
-                            onTestConnection={handleTestConnection}
-                            onInstallModel={() => setShowModelSelector(true)}
-                            onResetOnboarding={handleResetOnboarding}
-                        />
+                        {activeMode && (
+                            <ModeContent
+                                activeMode={activeMode}
+                                activeModeIndex={activeModeIndex}
+                                modes={settings.modes}
+                                models={models}
+                                isLoading={isLoading}
+                                updateSettings={updateSettings}
+                                onRefreshModels={handleTestConnection}
+                            />
+                        )}
                     </>
                 )}
+
+                <LLMAdvancedSettings
+                    url={settings.url}
+                    onUrlChange={(url) => updateSettings({ url })}
+                    onTestConnection={handleTestConnection}
+                    onInstallModel={() => setShowModelSelector(true)}
+                    onResetOnboarding={handleResetOnboarding}
+                />
             </div>
         </main>
     );

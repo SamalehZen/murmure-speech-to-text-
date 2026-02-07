@@ -1,11 +1,12 @@
 use crate::context::BrowserContext;
 use crate::dictionary;
-use crate::llm::helpers::load_llm_connect_settings;
+use crate::llm::helpers::{load_llm_connect_settings, load_tones_settings};
+use crate::llm::tone_selector::select_tone;
 use crate::llm::types::{
     OllamaGenerateRequest, OllamaGenerateResponse, OllamaModel, OllamaOptions, OllamaPullRequest,
     OllamaPullResponse, OllamaTagsResponse,
 };
-use log::warn;
+use log::{info, warn};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -21,14 +22,31 @@ pub async fn post_process_with_llm(
         return Ok(transcription);
     }
 
-    let settings = load_llm_connect_settings(app);
+    let llm_settings = load_llm_connect_settings(app);
+    let tones_settings = load_tones_settings(app);
 
-    let active_mode = settings
-        .modes
-        .get(settings.active_mode_index)
-        .ok_or("No active mode selected")?;
+    let app_name_str = app_name.as_deref().unwrap_or("");
 
-    if active_mode.model.is_empty() {
+    let (prompt_template, model) =
+        match select_tone(&tones_settings, app_name_str, &browser_context) {
+            Some(selection) => {
+                info!(
+                    "Selected tone '{}' matched by {:?}",
+                    selection.tone.name, selection.matched_by
+                );
+                let _ = app.emit("tone-selected", &selection);
+                (selection.tone.prompt, selection.tone.model)
+            }
+            None => {
+                let active_mode = llm_settings
+                    .modes
+                    .get(llm_settings.active_mode_index)
+                    .ok_or("No active mode or tone available")?;
+                (active_mode.prompt.clone(), active_mode.model.clone())
+            }
+        };
+
+    if model.is_empty() {
         return Err("No model selected".to_string());
     }
 
@@ -49,10 +67,8 @@ pub async fn post_process_with_llm(
         .and_then(|c| c.domain.as_deref())
         .unwrap_or("");
     let window_title_str = window_title.as_deref().unwrap_or("");
-    let app_name_str = app_name.as_deref().unwrap_or("");
 
-    let prompt = active_mode
-        .prompt
+    let prompt = prompt_template
         .replace("{{TRANSCRIPT}}", &transcription)
         .replace("{transcript}", &transcription)
         .replace("{{DICTIONARY}}", &dictionary_words)
@@ -67,10 +83,10 @@ pub async fn post_process_with_llm(
         .replace("{app_name}", app_name_str);
 
     let client = reqwest::Client::new();
-    let url = format!("{}/generate", settings.url.trim_end_matches('/'));
+    let url = format!("{}/generate", llm_settings.url.trim_end_matches('/'));
 
     let request_body = OllamaGenerateRequest {
-        model: active_mode.model.clone(),
+        model,
         prompt,
         stream: false,
         options: Some(OllamaOptions { temperature: 0.0 }),
@@ -102,23 +118,35 @@ pub async fn post_process_with_llm(
 }
 
 pub async fn process_command_with_llm(app: &AppHandle, prompt: String) -> Result<String, String> {
-    let settings = load_llm_connect_settings(app);
-    let active_mode = settings
-        .modes
-        .get(settings.active_mode_index)
-        .ok_or("No active mode selected")?;
+    let llm_settings = load_llm_connect_settings(app);
+    let tones_settings = load_tones_settings(app);
 
-    if active_mode.model.is_empty() {
-        return Err("No model selected".to_string());
+    let model = if let Some(default_id) = &tones_settings.default_tone_id {
+        tones_settings
+            .tones
+            .iter()
+            .find(|t| &t.id == default_id)
+            .map(|t| t.model.clone())
+            .filter(|m| !m.is_empty())
+    } else {
+        None
     }
+    .or_else(|| {
+        llm_settings
+            .modes
+            .get(llm_settings.active_mode_index)
+            .map(|m| m.model.clone())
+            .filter(|m| !m.is_empty())
+    })
+    .ok_or("No model configured")?;
 
     let _ = app.emit("llm-processing-start", ());
 
     let client = reqwest::Client::new();
-    let url = format!("{}/generate", settings.url.trim_end_matches('/'));
+    let url = format!("{}/generate", llm_settings.url.trim_end_matches('/'));
 
     let request_body = OllamaGenerateRequest {
-        model: active_mode.model.clone(),
+        model,
         prompt,
         stream: false,
         options: Some(OllamaOptions { temperature: 0.0 }),
@@ -226,24 +254,46 @@ pub async fn pull_ollama_model(app: AppHandle, url: String, model: String) -> Re
 /// Warm up the configured Ollama model by issuing a minimal generate request.
 /// This reduces the perceived latency on the first real call during LLM Connect.
 pub async fn warmup_ollama_model(app: &AppHandle) -> Result<(), String> {
-    let settings = load_llm_connect_settings(app);
+    let llm_settings = load_llm_connect_settings(app);
+    let tones_settings = load_tones_settings(app);
 
-    // Nothing to warm up if configuration is incomplete
-    // Check active mode
-    if settings.modes.is_empty() || settings.url.trim().is_empty() {
+    if llm_settings.url.trim().is_empty() {
         return Ok(());
     }
-    let active_mode = &settings.modes[settings.active_mode_index];
-    if active_mode.model.trim().is_empty() {
-        return Ok(());
+
+    let model = if let Some(default_id) = &tones_settings.default_tone_id {
+        tones_settings
+            .tones
+            .iter()
+            .find(|t| &t.id == default_id)
+            .map(|t| t.model.clone())
+            .filter(|m| !m.is_empty())
+    } else {
+        None
     }
+    .or_else(|| {
+        if !llm_settings.modes.is_empty() {
+            let active_mode = &llm_settings.modes[llm_settings.active_mode_index];
+            if !active_mode.model.trim().is_empty() {
+                Some(active_mode.model.clone())
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    });
+
+    let model = match model {
+        Some(m) => m,
+        None => return Ok(()),
+    };
 
     let client = reqwest::Client::new();
-    let url = format!("{}/generate", settings.url.trim_end_matches('/'));
+    let url = format!("{}/generate", llm_settings.url.trim_end_matches('/'));
 
-    // Minimal prompt, no streaming. We intentionally ignore the response body.
     let request_body = OllamaGenerateRequest {
-        model: active_mode.model.clone(),
+        model,
         prompt: " ".to_string(),
         stream: false,
         options: Some(OllamaOptions { temperature: 0.0 }),
@@ -277,15 +327,47 @@ pub fn warmup_ollama_model_background(app: &AppHandle) {
 }
 
 pub fn switch_active_mode(app: &AppHandle, index: usize) {
-    let mut settings = load_llm_connect_settings(app);
+    let mut llm_settings = load_llm_connect_settings(app);
+    let mut tones_settings = load_tones_settings(app);
 
-    // Check if index is valid and different
-    if index < settings.modes.len() && settings.active_mode_index != index {
-        settings.active_mode_index = index;
-        let mode_name = settings.modes[index].name.clone();
+    if index < tones_settings.tones.len() {
+        let tone = &tones_settings.tones[index];
+        let previous_override = tones_settings.manual_override_tone_id.clone();
+        let new_override = Some(tone.id.clone());
 
-        if crate::llm::helpers::save_llm_connect_settings(app, &settings).is_ok() {
-            let _ = app.emit("llm-settings-updated", &settings);
+        if previous_override != new_override {
+            tones_settings.manual_override_tone_id = new_override;
+            let tone_name = tone.name.clone();
+
+            if crate::llm::helpers::save_tones_settings(app, &tones_settings).is_ok() {
+                let _ = app.emit("tones-settings-updated", &tones_settings);
+                let _ = app.emit("overlay-feedback", &tone_name);
+                crate::overlay::overlay::show_recording_overlay(app);
+                let app_handle = app.clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(Duration::from_millis(1000));
+                    let current_settings = crate::settings::load_settings(&app_handle);
+                    if current_settings.overlay_mode.as_str() == "always" {
+                        return;
+                    }
+                    let is_recording = app_handle
+                        .state::<crate::audio::types::AudioState>()
+                        .recorder
+                        .lock()
+                        .is_some();
+                    if !is_recording {
+                        crate::overlay::overlay::hide_recording_overlay(&app_handle);
+                    }
+                });
+                info!("Switched to tone: {}", tone_name);
+            }
+        }
+    } else if index < llm_settings.modes.len() && llm_settings.active_mode_index != index {
+        llm_settings.active_mode_index = index;
+        let mode_name = llm_settings.modes[index].name.clone();
+
+        if crate::llm::helpers::save_llm_connect_settings(app, &llm_settings).is_ok() {
+            let _ = app.emit("llm-settings-updated", &llm_settings);
             let _ = app.emit("overlay-feedback", mode_name);
             crate::overlay::overlay::show_recording_overlay(app);
             let app_handle = app.clone();
@@ -305,5 +387,14 @@ pub fn switch_active_mode(app: &AppHandle, index: usize) {
                 }
             });
         }
+    }
+}
+
+pub fn clear_manual_override(app: &AppHandle) {
+    let mut tones_settings = load_tones_settings(app);
+    if tones_settings.manual_override_tone_id.is_some() {
+        tones_settings.manual_override_tone_id = None;
+        let _ = crate::llm::helpers::save_tones_settings(app, &tones_settings);
+        let _ = app.emit("tones-settings-updated", &tones_settings);
     }
 }
