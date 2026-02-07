@@ -34,6 +34,46 @@ impl Default for LLMConnectSettings {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct Tone {
+    pub id: String,
+    pub name: String,
+    pub prompt: String,
+    pub model: String,
+    pub is_system: bool,
+    pub icon: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(tag = "type")]
+pub enum AppMatcher {
+    #[serde(rename = "app")]
+    App {
+        app_name: String,
+        process_name: Option<String>,
+    },
+    #[serde(rename = "domain")]
+    Domain { pattern: String },
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct RegisteredApp {
+    pub id: String,
+    pub matcher: AppMatcher,
+    pub tone_id: String,
+    pub display_name: String,
+    pub icon: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[serde(default)]
+pub struct TonesSettings {
+    pub tones: Vec<Tone>,
+    pub registered_apps: Vec<RegisteredApp>,
+    pub default_tone_id: Option<String>,
+    pub manual_override_tone_id: Option<String>,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct OllamaGenerateRequest {
     pub model: String,
