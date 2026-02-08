@@ -11,6 +11,7 @@ import {
     Wrench,
     AlignLeft,
     MessageSquare,
+    Cloud,
 } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
@@ -57,6 +58,12 @@ const getPersonalizeSubItems = (t: (key: string) => string) => [
         url: '/personalize/tones',
         icon: MessageSquare,
         dataTestId: 'tones-tab',
+    },
+    {
+        name: t('Cloud Providers'),
+        url: '/personalize/cloud-providers',
+        icon: Cloud,
+        dataTestId: 'cloud-providers-tab',
     },
 ];
 

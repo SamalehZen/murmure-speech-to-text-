@@ -12,7 +12,7 @@ import { CustomDictionary } from './features/settings/custom-dictionary/custom-d
 import { FormattingRules } from './features/settings/formatting-rules/formatting-rules';
 import { System } from './features/settings/system/system';
 import { LLMConnect } from './features/llm-connect/llm-connect';
-import { TonesPage } from './features/tones';
+import { TonesPage, CloudProvidersPage } from './features/tones';
 
 const rootRoute = createRootRoute({
     component: () => <Layout />,
@@ -54,6 +54,12 @@ const personalizeTonesRoute = createRoute({
     component: TonesPage,
 });
 
+const personalizeCloudProvidersRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: '/personalize/cloud-providers',
+    component: CloudProvidersPage,
+});
+
 const settingsSystemRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: '/settings/system',
@@ -88,6 +94,7 @@ const routeTree = rootRoute.addChildren([
     personalizeFormattingRulesRoute,
     personalizeLLMConnectRoute,
     personalizeTonesRoute,
+    personalizeCloudProvidersRoute,
     aboutRoute,
 ]);
 

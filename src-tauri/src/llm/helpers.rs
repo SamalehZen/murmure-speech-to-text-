@@ -1,5 +1,6 @@
 use crate::llm::migration::migrate_llm_modes_to_tones;
 use crate::llm::types::{LLMConnectSettings, Tone, TonesSettings};
+use crate::llm::cloud_providers::{CloudProvidersSettings, LLMProviderType};
 use std::{fs, path::PathBuf};
 use tauri::{AppHandle, Manager};
 
@@ -143,6 +144,7 @@ pub fn get_system_tones() -> Vec<Tone> {
             model: String::new(),
             is_system: true,
             icon: Some("📝".to_string()),
+            provider: LLMProviderType::Ollama,
         },
         Tone {
             id: "system-email".to_string(),
@@ -152,6 +154,7 @@ pub fn get_system_tones() -> Vec<Tone> {
             model: String::new(),
             is_system: true,
             icon: Some("📧".to_string()),
+            provider: LLMProviderType::Ollama,
         },
         Tone {
             id: "system-code".to_string(),
@@ -161,8 +164,38 @@ pub fn get_system_tones() -> Vec<Tone> {
             model: String::new(),
             is_system: true,
             icon: Some("💻".to_string()),
+            provider: LLMProviderType::Ollama,
         },
     ]
+}
+
+fn cloud_providers_settings_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    if let Err(e) = fs::create_dir_all(&dir) {
+        return Err(format!("create_dir_all failed: {}", e));
+    }
+    Ok(dir.join("cloud_providers.json"))
+}
+
+pub fn load_cloud_providers_settings(app: &AppHandle) -> CloudProvidersSettings {
+    let path = match cloud_providers_settings_path(app) {
+        Ok(p) => p,
+        Err(_) => return CloudProvidersSettings::default(),
+    };
+
+    match fs::read_to_string(&path) {
+        Ok(content) => serde_json::from_str::<CloudProvidersSettings>(&content).unwrap_or_default(),
+        Err(_) => CloudProvidersSettings::default(),
+    }
+}
+
+pub fn save_cloud_providers_settings(
+    app: &AppHandle,
+    settings: &CloudProvidersSettings,
+) -> Result<(), String> {
+    let path = cloud_providers_settings_path(app)?;
+    let content = serde_json::to_string_pretty(settings).map_err(|e| e.to_string())?;
+    fs::write(path, content).map_err(|e| e.to_string())
 }
 
 pub fn compose_prompt(tone: &Tone, base_prompt: &str) -> String {

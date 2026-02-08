@@ -13,6 +13,9 @@ import {
     Crosshair,
     ChevronDown,
     ChevronRight,
+    Cloud,
+    Server,
+    AlertCircle,
 } from 'lucide-react';
 import { Input } from '@/components/input';
 import { Switch } from '@/components/switch';
@@ -24,7 +27,7 @@ import {
     DialogTitle,
 } from '@/components/dialog';
 import { Page } from '@/components/page';
-import { Tone, RegisteredApp, AppMatcher } from './hooks/use-tones';
+import { Tone, RegisteredApp, AppMatcher, LLMProviderType, CloudModel, CloudProvidersSettings } from './hooks/use-tones';
 import { BasePromptEditor } from './base-prompt-editor';
 
 interface CurrentContext {
@@ -391,7 +394,16 @@ interface EditToneDialogProps {
     tone: Tone | null;
     models: Array<{ name: string }>;
     basePrompt: string;
+    cloudSettings?: CloudProvidersSettings;
 }
+
+const PROVIDER_OPTIONS: { value: LLMProviderType; label: string; icon: 'server' | 'cloud' }[] = [
+    { value: 'ollama', label: 'Ollama (Local)', icon: 'server' },
+    { value: 'gemini', label: 'Google Gemini', icon: 'cloud' },
+    { value: 'openai', label: 'OpenAI', icon: 'cloud' },
+    { value: 'groq', label: 'Groq', icon: 'cloud' },
+    { value: 'openrouter', label: 'OpenRouter', icon: 'cloud' },
+];
 
 function EditToneDialog({
     open,
@@ -400,6 +412,7 @@ function EditToneDialog({
     tone,
     models,
     basePrompt,
+    cloudSettings,
 }: EditToneDialogProps) {
     const { t } = useTranslation();
     const [name, setName] = useState(tone?.name || '');
@@ -408,6 +421,9 @@ function EditToneDialog({
     const [icon, setIcon] = useState(tone?.icon || '');
     const [useBasePrompt, setUseBasePrompt] = useState(tone?.use_base_prompt ?? true);
     const [showPreview, setShowPreview] = useState(false);
+    const [provider, setProvider] = useState<LLMProviderType>(tone?.provider || 'ollama');
+    const [cloudModels, setCloudModels] = useState<CloudModel[]>([]);
+    const [loadingModels, setLoadingModels] = useState(false);
 
     useEffect(() => {
         if (open) {
@@ -417,8 +433,34 @@ function EditToneDialog({
             setIcon(tone?.icon || '');
             setUseBasePrompt(tone?.use_base_prompt ?? true);
             setShowPreview(false);
+            setProvider(tone?.provider || 'ollama');
         }
     }, [open, tone]);
+
+    useEffect(() => {
+        if (provider !== 'ollama') {
+            loadCloudModels(provider);
+        }
+    }, [provider]);
+
+    const loadCloudModels = async (p: LLMProviderType) => {
+        setLoadingModels(true);
+        try {
+            const models = await invoke<CloudModel[]>('get_cloud_models', { provider: p });
+            setCloudModels(models);
+        } catch (err) {
+            console.error('Failed to load cloud models:', err);
+            setCloudModels([]);
+        } finally {
+            setLoadingModels(false);
+        }
+    };
+
+    const hasApiKey = (p: LLMProviderType): boolean => {
+        if (p === 'ollama' || !cloudSettings) return true;
+        const key = p as keyof CloudProvidersSettings;
+        return Boolean(cloudSettings[key]?.api_key);
+    };
 
     const previewPrompt = useBasePrompt
         ? basePrompt.replace('{{TONE_INSTRUCTIONS}}', prompt)
@@ -430,12 +472,23 @@ function EditToneDialog({
             return;
         }
 
+        if (!model) {
+            toast.error(t('Please select a model'));
+            return;
+        }
+
+        if (provider !== 'ollama' && !hasApiKey(provider)) {
+            toast.error(t('API key not configured for this provider. Configure it in LLM Connection settings.'));
+            return;
+        }
+
         onSave({
             name: name.trim(),
             model,
             prompt,
             icon: icon || null,
             use_base_prompt: useBasePrompt,
+            provider,
         });
         onClose();
     };
@@ -475,20 +528,84 @@ function EditToneDialog({
 
                     <div>
                         <label className="block text-sm text-zinc-400 mb-1">
+                            {t('LLM Provider')}
+                        </label>
+                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                            {PROVIDER_OPTIONS.map((opt) => (
+                                <button
+                                    key={opt.value}
+                                    type="button"
+                                    onClick={() => {
+                                        setProvider(opt.value);
+                                        setModel('');
+                                    }}
+                                    className={clsx(
+                                        'flex items-center gap-2 px-3 py-2 rounded border text-sm transition-colors',
+                                        provider === opt.value
+                                            ? 'bg-sky-600 border-sky-500 text-white'
+                                            : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-zinc-200'
+                                    )}
+                                >
+                                    {opt.icon === 'server' ? (
+                                        <Server className="w-4 h-4" />
+                                    ) : (
+                                        <Cloud className="w-4 h-4" />
+                                    )}
+                                    {opt.label}
+                                </button>
+                            ))}
+                        </div>
+                        {provider !== 'ollama' && !hasApiKey(provider) && (
+                            <div className="flex items-center gap-2 mt-2 p-2 bg-amber-900/30 border border-amber-700/50 rounded text-amber-200 text-xs">
+                                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                                {t('API key not configured. Go to LLM Connection settings to add it.')}
+                            </div>
+                        )}
+                    </div>
+
+                    <div>
+                        <label className="block text-sm text-zinc-400 mb-1">
                             {t('Model')}
                         </label>
-                        <select
-                            className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-zinc-200"
-                            value={model}
-                            onChange={(e) => setModel(e.target.value)}
-                        >
-                            <option value="">{t('Select a model')}</option>
-                            {models.map((m) => (
-                                <option key={m.name} value={m.name}>
-                                    {m.name}
+                        {provider === 'ollama' ? (
+                            <select
+                                className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-zinc-200"
+                                value={model}
+                                onChange={(e) => setModel(e.target.value)}
+                            >
+                                <option value="">{t('Select a model')}</option>
+                                {models.map((m) => (
+                                    <option key={m.name} value={m.name}>
+                                        {m.name}
+                                    </option>
+                                ))}
+                            </select>
+                        ) : (
+                            <select
+                                className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded text-zinc-200"
+                                value={model}
+                                onChange={(e) => setModel(e.target.value)}
+                                disabled={loadingModels}
+                            >
+                                <option value="">
+                                    {loadingModels ? t('Loading...') : t('Select a model')}
                                 </option>
-                            ))}
-                        </select>
+                                {cloudModels.map((m) => (
+                                    <option key={m.id} value={m.id}>
+                                        {m.name}
+                                    </option>
+                                ))}
+                            </select>
+                        )}
+                        {provider === 'openrouter' && (
+                            <div className="mt-2">
+                                <Input
+                                    placeholder={t('Or enter model ID manually (e.g., openai/gpt-4o)')}
+                                    value={model}
+                                    onChange={(e) => setModel(e.target.value)}
+                                />
+                            </div>
+                        )}
                     </div>
 
                     <div className="flex items-center gap-3 p-3 bg-zinc-800/50 rounded-lg">
@@ -612,6 +729,20 @@ export function TonesSettings({
     const [currentContext, setCurrentContext] = useState<CurrentContext | null>(
         null
     );
+    const [cloudSettings, setCloudSettings] = useState<CloudProvidersSettings | undefined>();
+
+    useEffect(() => {
+        loadCloudSettings();
+    }, []);
+
+    const loadCloudSettings = async () => {
+        try {
+            const settings = await invoke<CloudProvidersSettings>('get_cloud_providers_settings');
+            setCloudSettings(settings);
+        } catch (err) {
+            console.error('Failed to load cloud provider settings:', err);
+        }
+    };
 
     const handleAddMatcher = () => {
         setEditMatcherItem(undefined);
@@ -823,6 +954,7 @@ export function TonesSettings({
                 tone={editTone}
                 models={models}
                 basePrompt={basePrompt}
+                cloudSettings={cloudSettings}
             />
         </div>
     );

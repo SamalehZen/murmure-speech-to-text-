@@ -1,6 +1,7 @@
 use crate::context::BrowserContext;
 use crate::dictionary;
-use crate::llm::helpers::{compose_prompt, load_llm_connect_settings, load_tones_settings, DEFAULT_BASE_PROMPT};
+use crate::llm::cloud_providers::{call_cloud_provider, LLMProviderType};
+use crate::llm::helpers::{compose_prompt, load_llm_connect_settings, load_tones_settings, load_cloud_providers_settings, DEFAULT_BASE_PROMPT};
 use crate::llm::tone_selector::select_tone;
 use crate::llm::types::{
     OllamaGenerateRequest, OllamaGenerateResponse, OllamaModel, OllamaOptions, OllamaPullRequest,
@@ -24,10 +25,11 @@ pub async fn post_process_with_llm(
 
     let llm_settings = load_llm_connect_settings(app);
     let tones_settings = load_tones_settings(app);
+    let cloud_settings = load_cloud_providers_settings(app);
 
     let app_name_str = app_name.as_deref().unwrap_or("");
 
-    let (prompt_template, model) =
+    let (prompt_template, model, provider) =
         match select_tone(&tones_settings, app_name_str, &browser_context) {
             Some(selection) => {
                 info!(
@@ -41,14 +43,14 @@ pub async fn post_process_with_llm(
                     &tones_settings.base_prompt
                 };
                 let composed = compose_prompt(&selection.tone, base);
-                (composed, selection.tone.model)
+                (composed, selection.tone.model, selection.tone.provider)
             }
             None => {
                 let active_mode = llm_settings
                     .modes
                     .get(llm_settings.active_mode_index)
                     .ok_or("No active mode or tone available")?;
-                (active_mode.prompt.clone(), active_mode.model.clone())
+                (active_mode.prompt.clone(), active_mode.model.clone(), LLMProviderType::Ollama)
             }
         };
 
@@ -88,37 +90,74 @@ pub async fn post_process_with_llm(
         .replace("{{APP_NAME}}", app_name_str)
         .replace("{app_name}", app_name_str);
 
+    let result = match provider {
+        LLMProviderType::Ollama => {
+            call_ollama(&llm_settings.url, &model, &prompt).await
+        }
+        LLMProviderType::Gemini => {
+            let api_key = &cloud_settings.gemini.api_key;
+            if api_key.is_empty() {
+                Err("Gemini API key not configured".to_string())
+            } else {
+                call_cloud_provider(&provider, api_key, &model, &prompt).await
+            }
+        }
+        LLMProviderType::OpenAI => {
+            let api_key = &cloud_settings.openai.api_key;
+            if api_key.is_empty() {
+                Err("OpenAI API key not configured".to_string())
+            } else {
+                call_cloud_provider(&provider, api_key, &model, &prompt).await
+            }
+        }
+        LLMProviderType::OpenRouter => {
+            let api_key = &cloud_settings.openrouter.api_key;
+            if api_key.is_empty() {
+                Err("OpenRouter API key not configured".to_string())
+            } else {
+                call_cloud_provider(&provider, api_key, &model, &prompt).await
+            }
+        }
+        LLMProviderType::Groq => {
+            let api_key = &cloud_settings.groq.api_key;
+            if api_key.is_empty() {
+                Err("Groq API key not configured".to_string())
+            } else {
+                call_cloud_provider(&provider, api_key, &model, &prompt).await
+            }
+        }
+    };
+
+    let _ = app.emit("llm-processing-end", ());
+    result
+}
+
+async fn call_ollama(url: &str, model: &str, prompt: &str) -> Result<String, String> {
     let client = reqwest::Client::new();
-    let url = format!("{}/generate", llm_settings.url.trim_end_matches('/'));
+    let api_url = format!("{}/generate", url.trim_end_matches('/'));
 
     let request_body = OllamaGenerateRequest {
-        model,
-        prompt,
+        model: model.to_string(),
+        prompt: prompt.to_string(),
         stream: false,
         options: Some(OllamaOptions { temperature: 0.0 }),
     };
 
-    let response = client.post(&url).json(&request_body).send().await;
-
-    let response = match response {
-        Ok(res) => res,
-        Err(e) => {
-            let _ = app.emit("llm-processing-end", ());
-            return Err(format!("Failed to connect to Ollama: {}", e));
-        }
-    };
+    let response = client
+        .post(&api_url)
+        .json(&request_body)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to connect to Ollama: {}", e))?;
 
     if !response.status().is_success() {
-        let _ = app.emit("llm-processing-end", ());
         return Err(format!("Ollama API returned error: {}", response.status()));
     }
 
-    let ollama_response: Result<OllamaGenerateResponse, _> = response.json().await;
-
-    let _ = app.emit("llm-processing-end", ());
-
-    let ollama_response =
-        ollama_response.map_err(|e| format!("Failed to parse Ollama response: {}", e))?;
+    let ollama_response: OllamaGenerateResponse = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse Ollama response: {}", e))?;
 
     Ok(ollama_response.response.trim().to_string())
 }
