@@ -116,7 +116,10 @@ fn extract_url_macos(browser_name: &str) -> Option<String> {
 
 #[cfg(target_os = "windows")]
 fn extract_url_windows(browser_name: &str) -> Option<String> {
+    use std::os::windows::process::CommandExt;
     use std::process::Command;
+
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
 
     let process_name = match browser_name {
         "Google Chrome" => "chrome",
@@ -156,7 +159,8 @@ try {{
     );
 
     let output = Command::new("powershell")
-        .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+        .args(["-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", &script])
+        .creation_flags(CREATE_NO_WINDOW)
         .output()
         .ok()?;
 
