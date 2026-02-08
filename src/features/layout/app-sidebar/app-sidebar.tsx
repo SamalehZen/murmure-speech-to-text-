@@ -10,6 +10,7 @@ import {
     Sparkles,
     Wrench,
     AlignLeft,
+    MessageSquare,
 } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
@@ -50,6 +51,12 @@ const getPersonalizeSubItems = (t: (key: string) => string) => [
         url: '/personalize/llm-connect',
         icon: Sparkles,
         dataTestId: 'llm-connect-tab',
+    },
+    {
+        name: t('Tones'),
+        url: '/personalize/tones',
+        icon: MessageSquare,
+        dataTestId: 'tones-tab',
     },
 ];
 
