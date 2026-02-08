@@ -1,3 +1,4 @@
+use crate::llm::cloud_providers::LLMProviderType;
 use crate::llm::helpers::DEFAULT_BASE_PROMPT;
 use crate::llm::types::{LLMConnectSettings, Tone, TonesSettings};
 use uuid::Uuid;
@@ -14,6 +15,7 @@ pub fn migrate_llm_modes_to_tones(old_settings: &LLMConnectSettings) -> TonesSet
             model: mode.model.clone(),
             is_system: false,
             icon: None,
+            provider: LLMProviderType::Ollama,
         };
         tones.push(tone);
     }
