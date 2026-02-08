@@ -134,30 +134,41 @@ jobs:
                   TAURI_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
               shell: pwsh
               run: |
-                  $releaseDir = "release-bundle"
-                  if (Test-Path $releaseDir) { Remove-Item $releaseDir -Recurse -Force }
-                  New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
+                  $nsisDir = "release-nsis"
+                  $msiDir = "release-msi"
+                  if (Test-Path $nsisDir) { Remove-Item $nsisDir -Recurse -Force }
+                  if (Test-Path $msiDir) { Remove-Item $msiDir -Recurse -Force }
+                  New-Item -ItemType Directory -Force -Path $nsisDir | Out-Null
+                  New-Item -ItemType Directory -Force -Path $msiDir | Out-Null
 
                   # MSI
                   $msi = Get-ChildItem -Path "signed_artifacts" -Filter *.msi | Select-Object -First 1
                   if ($msi) {
-                      $finalMsi = Join-Path $releaseDir "Murmure_x64.msi"
+                      $finalMsi = Join-Path $msiDir "Murmure_x64.msi"
                       Copy-Item $msi.FullName -Destination $finalMsi -Force
                       pnpm tauri signer sign $finalMsi
                   }
 
-                  # EXE
+                  # EXE (NSIS)
                   $exe = Get-ChildItem -Path "signed_artifacts" -Filter *.exe | Select-Object -First 1
                   if ($exe) {
-                      $finalExe = Join-Path $releaseDir "Murmure_x64-setup.exe"
+                      $finalExe = Join-Path $nsisDir "Murmure_x64-setup.exe"
                       Copy-Item $exe.FullName -Destination $finalExe -Force
                       pnpm tauri signer sign $finalExe
                   }
 
-            - name: Upload artifact (1 day)
+            - name: Upload NSIS installer
               if: ${{ inputs.dry == false }}
               uses: actions/upload-artifact@v4
               with:
-                  name: murmure-windows-x64
-                  path: release-bundle
+                  name: murmure-windows-x64-setup
+                  path: release-nsis
+                  retention-days: 1
+
+            - name: Upload MSI installer
+              if: ${{ inputs.dry == false }}
+              uses: actions/upload-artifact@v4
+              with:
+                  name: murmure-windows-x64-msi
+                  path: release-msi
                   retention-days: 1
