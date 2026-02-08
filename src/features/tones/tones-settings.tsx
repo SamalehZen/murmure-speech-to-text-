@@ -495,12 +495,13 @@ function EditToneDialog({
 
     return (
         <Dialog open={open} onOpenChange={onClose}>
-            <DialogContent className="max-w-2xl">
-                <DialogHeader>
+            <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col p-0">
+                <DialogHeader className="px-6 pt-6">
                     <DialogTitle>{t('Edit Tone')}</DialogTitle>
                 </DialogHeader>
 
-                <div className="space-y-4 py-4">
+                <div className="flex-1 overflow-y-auto px-6 pb-6">
+                    <div className="space-y-4 py-4">
                     <div className="flex gap-4">
                         <div className="w-20">
                             <label className="block text-sm text-zinc-400 mb-1">
@@ -664,8 +665,9 @@ function EditToneDialog({
                         )}
                     </div>
                 </div>
+                </div>
 
-                <DialogFooter className="dark">
+                <DialogFooter className="dark border-t border-zinc-800 px-6 py-4">
                     <Page.SecondaryButton variant="ghost" onClick={onClose}>
                         {t('Cancel')}
                     </Page.SecondaryButton>
