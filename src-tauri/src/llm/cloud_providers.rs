@@ -311,7 +311,7 @@ pub async fn call_groq(api_key: &str, model: &str, prompt: &str) -> Result<Strin
 pub async fn test_cloud_provider(provider: &LLMProviderType, api_key: &str) -> Result<bool, String> {
     let test_prompt = "Say 'OK' if you can read this.";
     let test_model = match provider {
-        LLMProviderType::Gemini => "gemini-2.0-flash",
+        LLMProviderType::Gemini => "gemini-2.5-flash-lite",
         LLMProviderType::OpenAI => "gpt-4o-mini",
         LLMProviderType::OpenRouter => "openai/gpt-4o-mini",
         LLMProviderType::Groq => "llama-3.1-8b-instant",

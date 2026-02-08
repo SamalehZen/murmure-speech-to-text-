@@ -23,7 +23,7 @@ const PROVIDERS: ProviderConfig[] = [
         key: 'gemini',
         name: 'Google Gemini',
         description: 'Fast and efficient models from Google',
-        defaultModel: 'gemini-2.5-flash',
+        defaultModel: 'gemini-2.5-flash-lite',
         docsUrl: 'https://aistudio.google.com/app/apikey',
     },
     {
@@ -50,7 +50,7 @@ const PROVIDERS: ProviderConfig[] = [
 ];
 
 const DEFAULT_SETTINGS: CloudProvidersSettings = {
-    gemini: { api_key: '', default_model: 'gemini-2.0-flash' },
+    gemini: { api_key: '', default_model: 'gemini-2.5-flash-lite' },
     openai: { api_key: '', default_model: 'gpt-4o-mini' },
     openrouter: { api_key: '', default_model: '' },
     groq: { api_key: '', default_model: 'llama-3.1-8b-instant' },
