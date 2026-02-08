@@ -23,7 +23,7 @@ const PROVIDERS: ProviderConfig[] = [
         key: 'gemini',
         name: 'Google Gemini',
         description: 'Fast and efficient models from Google',
-        defaultModel: 'gemini-2.0-flash',
+        defaultModel: 'gemini-2.5-flash',
         docsUrl: 'https://aistudio.google.com/app/apikey',
     },
     {

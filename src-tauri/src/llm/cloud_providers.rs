@@ -49,6 +49,16 @@ pub struct CloudModel {
 pub fn get_gemini_models() -> Vec<CloudModel> {
     vec![
         CloudModel {
+            id: "gemini-2.5-flash".to_string(),
+            name: "Gemini 2.5 Flash".to_string(),
+            provider: LLMProviderType::Gemini,
+        },
+        CloudModel {
+            id: "gemini-2.5-flash-lite".to_string(),
+            name: "Gemini 2.5 Flash Lite".to_string(),
+            provider: LLMProviderType::Gemini,
+        },
+        CloudModel {
             id: "gemini-2.0-flash".to_string(),
             name: "Gemini 2.0 Flash".to_string(),
             provider: LLMProviderType::Gemini,
@@ -117,6 +127,36 @@ pub fn get_groq_models() -> Vec<CloudModel> {
             id: "gemma2-9b-it".to_string(),
             name: "Gemma 2 9B".to_string(),
             provider: LLMProviderType::Groq,
+        },
+    ]
+}
+
+pub fn get_openrouter_models() -> Vec<CloudModel> {
+    vec![
+        CloudModel {
+            id: "openai/gpt-4o".to_string(),
+            name: "OpenAI GPT-4o".to_string(),
+            provider: LLMProviderType::OpenRouter,
+        },
+        CloudModel {
+            id: "openai/gpt-4o-mini".to_string(),
+            name: "OpenAI GPT-4o Mini".to_string(),
+            provider: LLMProviderType::OpenRouter,
+        },
+        CloudModel {
+            id: "anthropic/claude-3.5-sonnet".to_string(),
+            name: "Claude 3.5 Sonnet".to_string(),
+            provider: LLMProviderType::OpenRouter,
+        },
+        CloudModel {
+            id: "google/gemini-2.0-flash-001".to_string(),
+            name: "Gemini 2.0 Flash".to_string(),
+            provider: LLMProviderType::OpenRouter,
+        },
+        CloudModel {
+            id: "meta-llama/llama-3.3-70b-instruct".to_string(),
+            name: "Llama 3.3 70B".to_string(),
+            provider: LLMProviderType::OpenRouter,
         },
     ]
 }

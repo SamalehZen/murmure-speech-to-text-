@@ -67,7 +67,7 @@ pub fn get_cloud_models(provider: LLMProviderType) -> Result<Vec<CloudModel>, St
         LLMProviderType::Gemini => Ok(llm::get_gemini_models()),
         LLMProviderType::OpenAI => Ok(llm::get_openai_models()),
         LLMProviderType::Groq => Ok(llm::get_groq_models()),
-        LLMProviderType::OpenRouter => Ok(vec![]),
+        LLMProviderType::OpenRouter => Ok(llm::get_openrouter_models()),
         LLMProviderType::Ollama => Ok(vec![]),
     }
 }
