@@ -159,7 +159,10 @@ end tell"#;
 
 #[cfg(target_os = "windows")]
 fn get_active_window_info() -> (String, String) {
+    use std::os::windows::process::CommandExt;
     use std::process::Command;
+
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
 
     let script = r#"
 $foreground = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error()
@@ -187,7 +190,8 @@ Write-Output "$appName|||$($title.ToString())"
 "#;
 
     let output = Command::new("powershell")
-        .args(["-NoProfile", "-NonInteractive", "-Command", script])
+        .args(["-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", script])
+        .creation_flags(CREATE_NO_WINDOW)
         .output();
 
     match output {

@@ -31,6 +31,8 @@ Domain: {{BROWSER_DOMAIN}}
 <input>{{TRANSCRIPT}}</input>
 `;
 
+export type LLMProviderType = 'ollama' | 'gemini' | 'openai' | 'openrouter' | 'groq';
+
 export interface Tone {
     id: string;
     name: string;
@@ -39,6 +41,26 @@ export interface Tone {
     model: string;
     is_system: boolean;
     icon: string | null;
+    provider?: LLMProviderType;
+}
+
+export interface CloudModel {
+    id: string;
+    name: string;
+    provider: LLMProviderType;
+}
+
+export interface ProviderSettings {
+    api_key: string;
+    default_model: string;
+    custom_endpoint?: string;
+}
+
+export interface CloudProvidersSettings {
+    gemini: ProviderSettings;
+    openai: ProviderSettings;
+    openrouter: ProviderSettings;
+    groq: ProviderSettings;
 }
 
 export interface AppMatcher {

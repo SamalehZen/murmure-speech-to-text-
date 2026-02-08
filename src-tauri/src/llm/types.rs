@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use crate::llm::cloud_providers::LLMProviderType;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(default)]
@@ -44,6 +45,8 @@ pub struct Tone {
     pub model: String,
     pub is_system: bool,
     pub icon: Option<String>,
+    #[serde(default)]
+    pub provider: LLMProviderType,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
